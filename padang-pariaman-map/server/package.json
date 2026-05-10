@@ -15,6 +15,7 @@
   "prisma": {
     "schema": "prisma/schema.prisma"
   },
+  "_comment": "NOTE: This is a monorepo. Run all Prisma commands from the server/ directory, not from client/",
   "dependencies": {
     "@prisma/client": "^5.14.0",
     "bcrypt": "^5.1.1",

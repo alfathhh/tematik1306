@@ -175,6 +175,7 @@ router.post('/import', authMiddleware, upload.single('file'), async (req: AuthRe
         const nama      = String(row['nama'] ?? '').trim();
         const kategori  = String(row['kategori'] ?? '').trim();
         const alamat    = row['alamat'] ? String(row['alamat']).trim() : null;
+        // foto_url opsional — bisa dikosongkan di Excel, foto bisa diupload lewat admin panel
         const fotoUrl   = row['foto_url'] ? String(row['foto_url']).trim() : null;
         const lat       = parseFloat(String(row['lat'] ?? ''));
         const lng       = parseFloat(String(row['lng'] ?? ''));
@@ -192,6 +193,10 @@ router.post('/import', authMiddleware, upload.single('file'), async (req: AuthRe
         if (kdkec.length !== 6 || !kdkec.startsWith(KDKAB_PADANG_PARIAMAN)) { errors.push({ baris: nomorBaris, pesan: 'kdkec tidak valid (harus 6 digit, dimulai dengan 1305)' }); continue; }
         if (kddesa.length !== 10 || !kddesa.startsWith(kdkec)) { errors.push({ baris: nomorBaris, pesan: 'kddesa tidak valid (harus 10 digit)' }); continue; }
         if (kdsls && (kdsls.length !== 12 || !kdsls.startsWith(kddesa))) { errors.push({ baris: nomorBaris, pesan: 'kdsls tidak valid (harus 12 digit)' }); continue; }
+        // Validasi URL foto jika diisi (opsional)
+        if (fotoUrl && !fotoUrl.startsWith('http://') && !fotoUrl.startsWith('https://') && !fotoUrl.startsWith('/uploads/')) {
+          errors.push({ baris: nomorBaris, pesan: 'foto_url harus berupa URL valid (http/https) — biarkan kosong jika belum ada foto' }); continue;
+        }
 
         await prisma.infrastruktur.create({
           data: { nama, kategori, alamat, fotoUrl, lat, lng, kdkab, kdkec, kddesa, kdsls },

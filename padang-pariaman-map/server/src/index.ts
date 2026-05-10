@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import fs from 'fs';
 
 // Import semua routes
 import authRouter from './routes/auth';
@@ -8,9 +10,16 @@ import kategoriRouter from './routes/kategori';
 import infrastrukturRouter from './routes/infrastruktur';
 import statistikRouter from './routes/statistik';
 import wilayahRouter from './routes/wilayah';
+import uploadRouter from './routes/upload';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Pastikan direktori uploads/images ada saat server start
+const uploadsDir = path.join(process.cwd(), 'uploads', 'images');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
 // ===== MIDDLEWARE GLOBAL =====
 app.use(cors({
@@ -20,12 +29,17 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// ===== STATIC FILES — foto yang diupload admin =====
+// Akses: http://localhost:3000/uploads/images/<nama-file>
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+
 // ===== ROUTES =====
 app.use('/api/auth', authRouter);
 app.use('/api/kategori', kategoriRouter);
 app.use('/api/infrastruktur', infrastrukturRouter);
 app.use('/api/statistik', statistikRouter);
 app.use('/api/wilayah', wilayahRouter);
+app.use('/api/upload', uploadRouter);
 
 // ===== HEALTH CHECK =====
 app.get('/api/health', (_req, res) => {

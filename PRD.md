@@ -636,6 +636,8 @@ main()
 | `DELETE` | `/api/infrastruktur/:id` | ✅ JWT | Hapus infrastruktur |
 | `POST` | `/api/infrastruktur/import` | ✅ JWT | Import dari file Excel (.xlsx) |
 | `GET` | `/api/infrastruktur/export` | ✅ JWT | Export ke file Excel (.xlsx) |
+| `POST` | `/api/upload/foto` | ✅ JWT | Upload foto infrastruktur (jpg/png/webp, maks 5MB) → kembalikan `fotoUrl` |
+| `DELETE` | `/api/upload/foto/:filename` | ✅ JWT | Hapus foto dari server |
 
 **Query params `GET /api/infrastruktur`:**
 
@@ -1027,7 +1029,7 @@ export function authMiddleware(req, res, next) {
 | Nama | text | ✅ | max 255 karakter |
 | Kategori | dropdown (dari API) | ✅ | harus ada di daftar kategori |
 | Alamat | textarea | ❌ | — |
-| Foto | URL text input | ❌ | format URL valid |
+| Foto | **Upload file atau URL manual** | ❌ | jpg/png/webp, maks 5MB |
 | Latitude | number | ✅ | range -90 sampai 90 |
 | Longitude | number | ✅ | range -180 sampai 180 |
 | Kecamatan | dropdown cascade | ✅ | dari API wilayah |
@@ -1035,11 +1037,13 @@ export function authMiddleware(req, res, next) {
 | Korong | dropdown cascade | ❌ | dari API wilayah, tergantung nagari |
 | [Map Picker] | mini peta | — | klik peta → isi lat/lng otomatis |
 
-**Map Picker (`MapPicker.tsx`):**
-- Mini peta Leaflet di dalam form.
-- Klik di mana saja di peta → marker muncul + field `lat`/`lng` terisi otomatis.
-- Marker bisa digeser (draggable).
-- Berguna untuk input koordinat yang akurat tanpa harus cari manual.
+**Komponen FotoUpload (`components/admin/FotoUpload.tsx`):**
+- Drag & drop atau klik untuk pilih file gambar (jpg, jpeg, png, webp)
+- Validasi tipe dan ukuran (maks 5MB) di sisi frontend sebelum upload
+- Upload ke `POST /api/upload/foto` → mendapat `fotoUrl` otomatis
+- Preview gambar setelah upload berhasil (hover untuk Ganti/Hapus)
+- Toggle "Isi URL manual" untuk memasukkan link gambar eksternal
+- Foto disimpan di `server/uploads/images/` dan diakses via `/uploads/images/<filename>`
 
 ---
 
@@ -1217,7 +1221,7 @@ File Excel harus memiliki nama sheet: `Data` (atau sheet pertama)
 | A | nama | Text | ✅ | Nama infrastruktur |
 | B | kategori | Text | ✅ | Value kategori (contoh: restoran) |
 | C | alamat | Text | ❌ | Alamat lengkap |
-| D | foto_url | Text | ❌ | URL foto |
+| D | foto_url | Text | ❌ | URL foto eksternal (opsional — kosongkan jika foto diupload via admin panel) |
 | E | lat | Number | ✅ | Latitude, contoh: -0.5397 |
 | F | lng | Number | ✅ | Longitude, contoh: 100.1187 |
 | G | kdkab | Text | ✅ | Kode kabupaten: 1305 |

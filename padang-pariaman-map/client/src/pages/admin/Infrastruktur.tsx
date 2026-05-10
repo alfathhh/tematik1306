@@ -6,6 +6,7 @@ import { ADMIN_PAGE_SIZE, KDKAB_PADANG_PARIAMAN } from '../../constants';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { useKecamatan, useNagari, useKorong } from '../../hooks/useWilayah';
+import FotoUpload from '../../components/admin/FotoUpload';
 
 // Fix Leaflet default icon
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
@@ -283,10 +284,10 @@ export default function AdminInfrastruktur() {
                       className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">URL Foto</label>
-                    <input value={form.fotoUrl} onChange={e => setForm(f => ({ ...f, fotoUrl: e.target.value }))}
-                      placeholder="https://..."
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <FotoUpload
+                      value={form.fotoUrl}
+                      onChange={url => setForm(f => ({ ...f, fotoUrl: url }))}
+                    />
                   </div>
                 </div>
 

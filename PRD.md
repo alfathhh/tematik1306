@@ -70,8 +70,11 @@ Kabupaten Padang Pariaman membutuhkan media visualisasi data spasial yang mudah 
 | **React** | 18+ | Library UI paling populer, ekosistem luas, cocok untuk komponen peta interaktif |
 | **Vite** | 5+ | Build tool cepat, HMR instan, cocok untuk development |
 | **TypeScript** | 5+ | Type safety mencegah bug runtime, autocomplete lebih baik |
+| **Tailwind CSS** | 3+ | Utility-first CSS framework, styling cepat tanpa custom CSS, konsisten di seluruh komponen |
 | **Leaflet.js** via `react-leaflet` | 4+ | Library peta open-source terbaik untuk web, ringan, banyak plugin |
 | **Zustand** | 4+ | State management ringan tanpa boilerplate Redux, cukup untuk skala aplikasi ini |
+
+> ⚠️ **CSS:** Seluruh styling menggunakan **Tailwind CSS utility classes**. Hindari penulisan custom CSS kecuali untuk kebutuhan spesifik Leaflet (marker icon, popup) yang tidak bisa di-handle Tailwind.
 
 ### Backend
 
@@ -1315,6 +1318,8 @@ export const JWT_EXPIRES_IN = '7d';
 | 13 | Gunakan Prisma migration untuk perubahan schema | Konsistensi DB di semua environment |
 | 14 | Environment variable untuk semua konfigurasi sensitif | Keamanan, portabilitas |
 | 15 | Debounce 300ms untuk search input | Mencegah request API berlebihan |
+| 16 | Gunakan **Tailwind CSS utility classes** untuk semua styling | Konsistensi, tidak perlu custom CSS terpisah |
+| 17 | Untuk styling Leaflet (marker, popup), gunakan CSS class custom di `index.css` (satu-satunya pengecualian Tailwind) | Leaflet tidak mendukung Tailwind langsung pada elemen internalnya |
 
 ### ❌ DON'T (Dilarang)
 
@@ -1354,7 +1359,8 @@ cd ..
 npm create vite@latest client -- --template react-ts
 cd client
 npm install react-leaflet leaflet leaflet.markercluster zustand axios recharts
-npm install -D @types/leaflet
+npm install -D @types/leaflet tailwindcss postcss autoprefixer
+npx tailwindcss init -p
 ```
 
 ### Langkah 2: Konfigurasi TypeScript & Prisma
@@ -1402,6 +1408,10 @@ npm install -D @types/leaflet
 - Setup route: `/` → ClientMap, `/admin` → redirect, `/admin/login` → Login, `/admin/dashboard`, dll.
 - Buat `ProtectedRoute` component
 - Setup Axios instance di `lib/api.ts` dengan interceptor
+- Konfigurasi Tailwind CSS:
+  - `tailwind.config.js`: tambahkan `content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"]`
+  - `src/index.css`: tambahkan `@tailwind base; @tailwind components; @tailwind utilities;`
+  - Import `index.css` di `main.tsx`
 
 ### Langkah 10: Frontend — Zustand Stores
 - Buat `store/filterStore.ts`, `store/mapStore.ts`, `store/authStore.ts`

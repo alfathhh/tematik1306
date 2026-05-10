@@ -2,6 +2,8 @@
 
 Aplikasi web peta interaktif untuk visualisasi data infrastruktur dan statistik wilayah Kabupaten Padang Pariaman, Sumatera Barat.
 
+---
+
 ## ✨ Fitur Utama
 
 ### Halaman Publik (`/`)
@@ -11,17 +13,21 @@ Aplikasi web peta interaktif untuk visualisasi data infrastruktur dan statistik 
 - 🔍 **Search** — Pencarian infrastruktur dengan debounce 300ms + flyTo peta
 - 📊 **Panel Statistik** — Card, Bar Chart, Donut Chart — update real-time sesuai filter wilayah
 
-### Panel Admin (`/admin`)
+### Panel Admin (`/admin`) — URL tersembunyi, tidak ada link dari halaman publik
 - 🔐 **Login** aman dengan JWT (7 hari)
-- 🏗️ **Kelola Infrastruktur** — CRUD + MapPicker + Import/Export Excel
+- 🏗️ **Kelola Infrastruktur** — CRUD + MapPicker koordinat + **Upload Foto** + Import/Export Excel
+- 📸 **Upload Foto** — Drag & drop atau klik pilih gambar (JPG/PNG/WebP, maks 5MB), preview langsung
 - 📈 **Kelola Statistik** — CRUD + Import/Export Excel
-- 🏷️ **Kelola Kategori** — CRUD dengan color picker + proteksi hapus
+- 🏷️ **Kelola Kategori** — CRUD dengan color picker + proteksi hapus jika masih dipakai
+
+---
 
 ## 🛠️ Tech Stack
 
 | Layer | Teknologi |
 |-------|-----------|
-| Frontend | React 18, Vite, TypeScript, Tailwind CSS |
+| Frontend | React 18, Vite, TypeScript |
+| CSS | **Tailwind CSS** (utility-first) |
 | Peta | Leaflet.js via react-leaflet |
 | State | Zustand |
 | Charts | Recharts |
@@ -30,15 +36,18 @@ Aplikasi web peta interaktif untuk visualisasi data infrastruktur dan statistik 
 | Database | PostgreSQL + Prisma ORM |
 | Auth | JWT + bcrypt |
 | Excel | exceljs + multer |
+| Upload Foto | multer (simpan ke `server/uploads/images/`) |
+
+---
 
 ## 🚀 Cara Menjalankan
 
 ### Prasyarat
 - Node.js 20+
 - PostgreSQL 15+
-- npm atau yarn
+- npm
 
-### 1. Clone & Setup
+### 1. Clone & Masuk ke Folder
 
 ```bash
 git clone https://github.com/alfathhh/tematik1306.git
@@ -51,17 +60,28 @@ cd tematik1306/padang-pariaman-map
 cd server
 npm install
 
-# Salin .env dan isi DATABASE_URL
+# Salin .env dan isi konfigurasi
 cp .env.example .env
-# Edit .env: isi DATABASE_URL, JWT_SECRET
+# Edit .env: isi DATABASE_URL dan JWT_SECRET
+```
 
+Contoh isi `.env`:
+```env
+DATABASE_URL="postgresql://postgres:password@localhost:5432/padang_pariaman_map"
+JWT_SECRET="string_acak_panjang_minimal_32_karakter"
+JWT_EXPIRES_IN="7d"
+PORT=3000
+CORS_ORIGIN="http://localhost:5173"
+```
+
+```bash
 # Generate Prisma client
 npx prisma generate
 
-# Jalankan migrasi database
+# Buat tabel database
 npx prisma migrate dev --name init
 
-# Seed data awal (admin user + kategori default)
+# Isi data awal (admin + 6 kategori + contoh data)
 npm run prisma:seed
 
 # Jalankan server (port 3000)
@@ -74,9 +94,6 @@ npm run dev
 cd ../client
 npm install
 
-# Salin .env (opsional, sudah dikonfigurasi dengan proxy)
-cp .env.example .env
-
 # Jalankan frontend (port 5173)
 npm run dev
 ```
@@ -86,75 +103,157 @@ npm run dev
 | URL | Keterangan |
 |-----|-----------|
 | `http://localhost:5173` | Halaman peta publik |
-| `http://localhost:5173/admin/login` | Login admin |
+| `http://localhost:5173/admin/login` | Login panel admin |
 
-**Kredensial default admin:**
-- Username: `admin`
-- Password: `admin123`
+**Kredensial default:**
+| Field | Nilai |
+|-------|-------|
+| Username | `admin` |
+| Password | `admin123` |
 
-> ⚠️ Ganti password setelah pertama kali login di production!
+> ⚠️ **Penting:** Ganti password default segera setelah login pertama di environment production!
+
+---
+
+## 📸 Fitur Upload Foto
+
+Foto infrastruktur dapat diunggah langsung dari form admin:
+
+1. Buka form **Tambah / Edit Infrastruktur**
+2. Di bagian **Foto** — **drag & drop** gambar atau klik untuk memilih file
+3. Format yang didukung: JPG, JPEG, PNG, WebP — maks **5MB**
+4. Preview muncul otomatis. Hover untuk tombol **🔄 Ganti** atau **🗑️ Hapus**
+5. Atau klik **"Atau isi URL manual"** untuk memasukkan link gambar dari internet
+
+Foto tersimpan di: `server/uploads/images/`
+URL akses foto: `http://localhost:3000/uploads/images/<nama-file>`
+
+> Kolom `foto_url` di template import Excel **bisa dikosongkan** — foto bisa diupload lewat admin panel setelah data diimport.
+
+---
 
 ## 📁 Struktur Folder
 
 ```
 padang-pariaman-map/
-├── client/                  # Frontend React + Vite
-│   ├── public/geojson/      # File GeoJSON batas wilayah (statis)
+├── client/                        # Frontend React + Vite + Tailwind
+│   ├── public/
+│   │   └── geojson/               # File GeoJSON batas wilayah (statis)
+│   │       ├── kabupaten.geojson
+│   │       ├── kecamatan.geojson
+│   │       ├── nagari.geojson
+│   │       └── korong.geojson
 │   └── src/
 │       ├── components/
-│       │   ├── map/         # Komponen peta Leaflet
-│       │   ├── filter/      # Filter kategori & wilayah
-│       │   ├── search/      # SearchBar
-│       │   └── statistik/   # Panel statistik & charts
+│       │   ├── map/               # Komponen peta Leaflet
+│       │   ├── filter/            # Filter kategori & wilayah
+│       │   ├── search/            # SearchBar dengan debounce
+│       │   ├── statistik/         # Panel statistik & charts
+│       │   └── admin/             # FotoUpload, MapPicker, dll.
 │       ├── pages/
-│       │   ├── ClientMap.tsx        # Halaman publik
-│       │   └── admin/               # Halaman admin
-│       ├── store/           # Zustand stores
-│       ├── hooks/           # Custom hooks
-│       ├── lib/             # Axios instance, map utils
-│       └── types/           # TypeScript interfaces
+│       │   ├── ClientMap.tsx      # Halaman peta publik
+│       │   └── admin/             # Login, Dashboard, Infrastruktur, dll.
+│       ├── store/                 # Zustand stores (map, filter, auth)
+│       ├── hooks/                 # Custom hooks (debounce, wilayah, dll.)
+│       ├── lib/                   # Axios instance, map utils
+│       └── types/                 # TypeScript interfaces
 │
-└── server/                  # Backend Express
+└── server/                        # Backend Express + TypeScript
+    ├── uploads/
+    │   └── images/                # Foto yang diupload admin (dibuat otomatis)
     └── src/
-        ├── routes/          # API routes
-        ├── middleware/      # JWT auth middleware
-        ├── prisma/          # Schema & seed
-        └── utils/           # Excel & upload utils
+        ├── routes/                # API routes (auth, infrastruktur, dll.)
+        │   └── upload.ts          # POST /api/upload/foto
+        ├── middleware/            # JWT auth middleware
+        ├── prisma/                # Schema & seed
+        └── utils/                 # Excel & upload (multer) utils
 ```
+
+---
 
 ## 🗂️ API Endpoints
 
-| Method | Endpoint | Auth | Deskripsi |
-|--------|----------|------|-----------|
-| POST | `/api/auth/login` | ❌ | Login admin |
-| GET | `/api/kategori` | ❌ | Daftar kategori |
-| GET/POST/PUT/DELETE | `/api/kategori/:id` | ✅ | CRUD kategori |
-| GET | `/api/infrastruktur` | ❌ | Daftar infrastruktur (dengan filter) |
-| POST/PUT/DELETE | `/api/infrastruktur` | ✅ | CRUD infrastruktur |
-| POST | `/api/infrastruktur/import` | ✅ | Import Excel |
-| GET | `/api/infrastruktur/export` | ✅ | Export Excel |
-| GET | `/api/statistik` | ❌ | Data statistik |
-| GET | `/api/wilayah/kecamatan` | ❌ | Daftar kecamatan |
-| GET | `/api/wilayah/nagari` | ❌ | Daftar nagari |
-| GET | `/api/wilayah/korong` | ❌ | Daftar korong |
+### Publik (tanpa auth)
+| Method | Endpoint | Deskripsi |
+|--------|----------|-----------|
+| POST | `/api/auth/login` | Login admin, dapat JWT |
+| GET | `/api/kategori` | Daftar kategori infrastruktur |
+| GET | `/api/infrastruktur` | Daftar infrastruktur (dengan filter) |
+| GET | `/api/statistik` | Data statistik wilayah |
+| GET | `/api/wilayah/kecamatan` | Daftar kecamatan |
+| GET | `/api/wilayah/nagari` | Daftar nagari |
+| GET | `/api/wilayah/korong` | Daftar korong |
+
+### Protected (butuh JWT)
+| Method | Endpoint | Deskripsi |
+|--------|----------|-----------|
+| POST/PUT/DELETE | `/api/kategori/:id` | CRUD kategori |
+| POST/PUT/DELETE | `/api/infrastruktur/:id` | CRUD infrastruktur |
+| POST | `/api/infrastruktur/import` | Import dari Excel |
+| GET | `/api/infrastruktur/export` | Export ke Excel |
+| POST/PUT/DELETE | `/api/statistik/:id` | CRUD statistik |
+| POST | `/api/statistik/import` | Import statistik dari Excel |
+| GET | `/api/statistik/export` | Export statistik ke Excel |
+| **POST** | **`/api/upload/foto`** | **Upload foto (JPG/PNG/WebP, maks 5MB)** |
+| DELETE | `/api/upload/foto/:filename` | Hapus foto dari server |
+
+---
 
 ## 🗺️ Kode Wilayah
 
-| Level | Field | Panjang | Contoh |
-|-------|-------|---------|--------|
-| Kabupaten | `kdkab` | 4 digit | `1305` |
-| Kecamatan | `kdkec` | 6 digit | `130501` |
-| Nagari | `kddesa` | 10 digit | `1305010001` |
-| Korong | `kdsls` | 12 digit | `130501000101` |
+Sistem hierarki kode wilayah Kabupaten Padang Pariaman:
+
+| Level | Field | Panjang | Contoh | Catatan |
+|-------|-------|---------|--------|---------|
+| Kabupaten | `kdkab` | 4 digit | `1305` | Selalu tetap |
+| Kecamatan | `kdkec` | 6 digit | `130501` | Dimulai dengan `1305` |
+| Nagari | `kddesa` | 10 digit | `1305010001` | Dimulai dengan `kdkec` |
+| Korong | `kdsls` | 12 digit | `130501000101` | Dimulai dengan `kddesa` |
+
+---
 
 ## 📊 Template Import Excel
 
-### Infrastruktur
-| nama | kategori | alamat | foto_url | lat | lng | kdkab | kdkec | kddesa | kdsls |
+### Infrastruktur (kolom wajib & opsional)
+
+| Kolom | Header | Wajib | Keterangan |
+|-------|--------|-------|------------|
+| A | `nama` | ✅ | Nama infrastruktur |
+| B | `kategori` | ✅ | Value kategori (contoh: `restoran`) |
+| C | `alamat` | ❌ | Alamat lengkap |
+| D | `foto_url` | ❌ | URL foto eksternal — **kosongkan jika foto akan diupload via admin** |
+| E | `lat` | ✅ | Latitude (contoh: `-0.5397`) |
+| F | `lng` | ✅ | Longitude (contoh: `100.1187`) |
+| G | `kdkab` | ✅ | Harus `1305` |
+| H | `kdkec` | ✅ | 6 digit, dimulai `1305` |
+| I | `kddesa` | ✅ | 10 digit |
+| J | `kdsls` | ❌ | 12 digit (korong, opsional) |
 
 ### Statistik
-| kdkab | kdkec | kddesa | kdsls | indikator | nilai | satuan | tahun |
+
+| Kolom | Header | Wajib | Keterangan |
+|-------|--------|-------|------------|
+| A | `kdkab` | ✅ | Kode kabupaten |
+| B | `kdkec` | ❌ | Kode kecamatan |
+| C | `kddesa` | ❌ | Kode nagari |
+| D | `kdsls` | ❌ | Kode korong |
+| E | `indikator` | ✅ | Nama indikator (contoh: `Jumlah Penduduk`) |
+| F | `nilai` | ✅ | Angka |
+| G | `satuan` | ❌ | Satuan (contoh: `jiwa`) |
+| H | `tahun` | ✅ | Tahun data (contoh: `2024`) |
+
+---
+
+## 🔒 Catatan Keamanan
+
+- URL `/admin` **tidak diekspos** di navbar, footer, atau link manapun di halaman publik
+- Password admin di-hash dengan **bcrypt (cost factor 10)**
+- File `.env` **tidak di-commit** ke Git (ada di `.gitignore`)
+- Upload foto hanya menerima file gambar (JPG/PNG/WebP), maks 5MB
+- Import Excel dibatasi maks **5.000 baris** per file
+
+---
 
 ## 📝 Lisensi
 
-MIT License — Dikembangkan untuk Kabupaten Padang Pariaman
+MIT License — Dikembangkan untuk Kabupaten Padang Pariaman, Sumatera Barat

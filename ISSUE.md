@@ -112,10 +112,66 @@ library (sudah tersedia di `package.json`) menggantikan implementasi SVG manual.
 
 ---
 
+---
+
+## Bug #3 — Peta Tidak Full + BasemapToggle Tidak Muncul
+
+**Tanggal ditemukan:** 2026-05-13
+**Severity:** 🔴 Critical — peta hanya render sebagian, tombol ganti basemap hilang
+
+### Error / Gejala
+
+1. Panel kanan (statistik) muncul, tapi peta di bagian kanan terpotong/tidak penuh
+2. Tombol BasemapToggle tidak terlihat di halaman
+
+### Root Cause
+
+**A. Peta tidak full (`MapContainer.tsx`)**
+
+- Leaflet perlu container dengan ukuran eksplisit. `className="w-full h-full"` saja
+  tidak cukup jika parent flex belum selesai di-layout saat Leaflet init.
+- `MapEventHandler` hanya listen event `load` yang tidak selalu terpanggil —
+  Leaflet tidak mendeteksi perubahan ukuran container saat panel toggle.
+- Tidak ada `invalidateSize()` sehingga tile tidak mengisi area baru.
+
+**B. BasemapToggle tidak muncul/berfungsi (`BasemapToggle.tsx`)**
+
+- Subagent mendefinisikan 3 opsi: `'osm' | 'satellite' | 'topo'`, padahal
+  `mapStore.ts` hanya mengenal tipe `'osm' | 'google'`.
+  → `setBasemap('satellite')` dipanggil tapi TypeScript menerima (tidak strict
+  runtime check), nilai state tidak berubah, tile tidak berganti.
+- Komponen tidak punya `position: absolute` + `z-index` yang cukup
+  → tenggelam di bawah tile Leaflet yang punya z-index default ~200-400.
+
+### Fix
+
+**`MapContainer.tsx`:**
+- Tambah `ResizeObserver` pada container Leaflet → panggil `map.invalidateSize()`
+  otomatis setiap kali lebar/tinggi wrapper berubah (panel toggle, resize window).
+- Tambah `style={{ width: '100%', height: '100%' }}` inline sebagai fallback
+  lebih reliable dari `className` saja.
+- Tambah `style={{ minHeight: 0 }}` pada wrapper div agar flex child tidak overflow.
+- `MapEventHandler` sekarang pakai `useEffect` dengan `ResizeObserver` bukan hanya `load` event.
+- Import `useMap` di `BasemapLayer` untuk panggil `invalidateSize` saat basemap berubah.
+
+**`BasemapToggle.tsx`:**
+- Hapus tipe `'satellite' | 'topo'` yang tidak ada di store.
+- Ganti `setBasemap(id)` dengan `toggleBasemap()` (sudah ada di store, toggle osm ↔ google).
+- Tambah `position: absolute; bottom: 1.5rem; right: 0.75rem; z-index: 1000` agar
+  muncul di atas semua tile Leaflet.
+- Style glass morphism via inline style (lebih reliable dari Tailwind `backdrop-blur`
+  yang kadang butuh `transform: translateZ(0)` trigger di beberapa browser).
+
+---
+
 ## Checklist Verifikasi Setelah Fix
 
 - [ ] `npm run dev` jalan tanpa error Vite
-- [ ] Halaman `/` terbuka, peta tampil
+- [ ] Halaman `/` terbuka, peta tampil **penuh** (tidak ada area kosong/abu-abu)
+- [ ] Tombol BasemapToggle muncul di pojok kanan-bawah peta
+- [ ] Klik tombol BasemapToggle → tile berganti antara OSM dan Google Maps
+- [ ] Toggle panel Filter (kiri) → peta resize otomatis mengisi area baru
+- [ ] Toggle panel Statistik (kanan) → peta resize otomatis mengisi area baru
 - [ ] Filter kategori muncul dan bisa di-toggle
 - [ ] Filter wilayah cascade Kecamatan → Nagari → Korong berfungsi
 - [ ] Panel statistik tampil sesuai wilayah aktif

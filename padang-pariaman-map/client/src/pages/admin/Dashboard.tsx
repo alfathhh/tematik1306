@@ -1,68 +1,168 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import AdminLayout from './AdminLayout';
 import api from '../../lib/api';
-import { StatistikCard } from '../../components/statistik/StatistikCard';
+import { Card } from '../../components/ui/Card';
+import { Skeleton } from '../../components/ui/Skeleton';
+import { KategoriInfra } from '../../types';
 
-interface Stats {
-  totalInfra: number;
+/**
+ * Dashboard admin — ringkasan data infrastruktur, kategori, statistik.
+ *
+ * Fix: sebelumnya mengimport { StatistikCard } sebagai named export
+ * (tidak ada sejak file diubah ke default export) dan menggunakan
+ * endpoint /admin/stats yang tidak ada di API. Sekarang fetch langsung
+ * dari /infrastruktur, /kategori, /statistik sesuai endpoint yang ada.
+ */
+
+interface DashboardStats {
+  totalInfrastruktur: number;
   totalKategori: number;
-  totalWilayah: number;
-  recentInfra: Array<{ id: string; nama: string; kategori: string; wilayah: string; createdAt: string }>;
+  totalStatistik: number;
+  perKategori: { label: string; icon: string; color: string; count: number }[];
 }
 
 export default function Dashboard() {
-  const [stats, setStats] = useState<Stats | null>(null);
+  const [stats, setStats]     = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     document.title = 'Dashboard — Admin Peta Tematik';
-    api.get('/admin/stats').then(res => setStats(res.data)).catch(console.error).finally(() => setLoading(false));
+    Promise.all([
+      api.get('/infrastruktur'),
+      api.get('/kategori'),
+      api.get('/statistik'),
+    ])
+      .then(([infraRes, katRes, statRes]) => {
+        const infraData: { kategori: string }[] = infraRes.data.data ?? infraRes.data;
+        const katList: KategoriInfra[]           = katRes.data;
+        const statData: unknown[]                = statRes.data.data ?? statRes.data;
+
+        const perKategori = katList.map(k => ({
+          label: k.label,
+          icon:  k.icon,
+          color: k.color,
+          count: infraData.filter(i => i.kategori === k.value).length,
+        }));
+
+        setStats({
+          totalInfrastruktur: infraRes.data.total ?? infraData.length,
+          totalKategori:      katList.length,
+          totalStatistik:     statRes.data.total ?? statData.length,
+          perKategori,
+        });
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {[1,2,3].map(i => <div key={i} className="h-24 rounded-2xl bg-neutral-200 animate-pulse" />)}
-      </div>
-    </div>
-  );
+  const summaryCards = stats ? [
+    {
+      label: 'Total Infrastruktur', value: stats.totalInfrastruktur,
+      href: '/admin/infrastruktur', bg: 'bg-primary-50', color: 'text-primary-700',
+      icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 21h18M5 21V9l7-6 7 6v12" stroke="#0284c7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><rect x="9" y="14" width="6" height="7" rx="0.5" stroke="#0284c7" strokeWidth="2"/></svg>,
+    },
+    {
+      label: 'Kategori Aktif', value: stats.totalKategori,
+      href: '/admin/kategori', bg: 'bg-success-50', color: 'text-success-500',
+      icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="9" r="5" stroke="#16a34a" strokeWidth="2"/><path d="M15 15l4 4" stroke="#16a34a" strokeWidth="2" strokeLinecap="round"/></svg>,
+    },
+    {
+      label: 'Data Statistik', value: stats.totalStatistik,
+      href: '/admin/statistik', bg: 'bg-accent-50', color: 'text-accent-600',
+      icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M18 20V10M12 20V4M6 20v-6" stroke="#d97706" strokeWidth="2" strokeLinecap="round"/></svg>,
+    },
+  ] : [];
 
   return (
-    <div className="space-y-6 max-w-5xl">
-      <div>
-        <h1 className="text-xl font-display font-bold text-neutral-900">Dashboard</h1>
-        <p className="text-sm text-neutral-500 mt-0.5">Ringkasan data infrastruktur Kabupaten Padang Pariaman</p>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatistikCard label="Total Infrastruktur" value={stats?.totalInfra ?? 0} icon={
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" stroke="currentColor" strokeWidth="2" fill="none"/></svg>
-        } color="brand" />
-        <StatistikCard label="Kategori Aktif" value={stats?.totalKategori ?? 0} icon={
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-        } color="green" />
-        <StatistikCard label="Kecamatan Tercakup" value={stats?.totalWilayah ?? 0} icon={
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6-10l6-3m0 16l5.447-2.724A1 1 0 0021 16.382V5.618a1 1 0 00-1.447-.894L15 7m0 13V7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-        } color="amber" />
-      </div>
-      <div className="bg-white rounded-2xl border border-neutral-100 shadow-soft overflow-hidden">
-        <div className="px-5 py-4 border-b border-neutral-100">
-          <h2 className="text-sm font-display font-semibold text-neutral-900">Infrastruktur Terbaru</h2>
-        </div>
-        {!stats?.recentInfra?.length ? (
-          <div className="px-5 py-8 text-center text-sm text-neutral-400">Belum ada data infrastruktur.</div>
+    <AdminLayout title="Dashboard">
+      <div className="space-y-6 max-w-5xl">
+        {loading ? (
+          <>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+              {[1, 2, 3].map(i => <Skeleton.Card key={i} />)}
+            </div>
+            <Skeleton.Card className="h-48" />
+          </>
         ) : (
-          <div className="divide-y divide-neutral-50">
-            {stats.recentInfra.map(item => (
-              <div key={item.id} className="px-5 py-3 flex items-center gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-neutral-900 truncate">{item.nama}</div>
-                  <div className="text-xs text-neutral-500 truncate">{item.kategori} · {item.wilayah}</div>
+          <>
+            {/* Summary Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+              {summaryCards.map(c => (
+                <Link key={c.label} to={c.href}>
+                  <Card hoverable className="h-full cursor-pointer">
+                    <div className="flex items-start gap-3">
+                      <div className={`${c.bg} w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0`}>
+                        {c.icon}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-display font-bold text-2xl text-neutral-900">
+                          {c.value.toLocaleString('id-ID')}
+                        </p>
+                        <p className="text-xs text-neutral-500 mt-0.5 leading-snug">{c.label}</p>
+                      </div>
+                    </div>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+
+            {/* Distribusi per kategori */}
+            {stats && stats.perKategori.length > 0 && (
+              <Card>
+                <Card.Header>
+                  <Card.Title>Distribusi Infrastruktur per Kategori</Card.Title>
+                  <Link to="/admin/infrastruktur" className="text-xs text-primary-600 hover:underline font-medium">
+                    Lihat semua →
+                  </Link>
+                </Card.Header>
+                <div className="space-y-3">
+                  {stats.perKategori.sort((a, b) => b.count - a.count).map(k => {
+                    const pct = stats.totalInfrastruktur > 0
+                      ? Math.round((k.count / stats.totalInfrastruktur) * 100) : 0;
+                    return (
+                      <div key={k.label}>
+                        <div className="flex justify-between text-sm mb-1.5">
+                          <span className="flex items-center gap-1.5 text-neutral-700 font-medium">
+                            <span aria-hidden="true">{k.icon}</span> {k.label}
+                          </span>
+                          <span className="text-xs font-mono text-neutral-500">
+                            {k.count} <span className="text-neutral-400">({pct}%)</span>
+                          </span>
+                        </div>
+                        <div className="h-1.5 bg-neutral-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{ width: `${pct}%`, backgroundColor: k.color }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className="text-xs text-neutral-400 flex-shrink-0">{new Date(item.createdAt).toLocaleDateString('id-ID')}</div>
+              </Card>
+            )}
+
+            {/* Aksi Cepat */}
+            <Card>
+              <Card.Header><Card.Title>Aksi Cepat</Card.Title></Card.Header>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { href: '/admin/infrastruktur', label: 'Kelola Infrastruktur', bg: 'bg-primary-50 hover:bg-primary-100', text: 'text-primary-700', icon: '🏗️' },
+                  { href: '/admin/statistik',     label: 'Kelola Statistik',     bg: 'bg-accent-50 hover:bg-accent-100',   text: 'text-accent-700',  icon: '📈' },
+                  { href: '/admin/kategori',      label: 'Kelola Kategori',      bg: 'bg-success-50 hover:bg-success-100', text: 'text-success-600', icon: '🏷️' },
+                ].map(l => (
+                  <Link key={l.href} to={l.href}
+                    className={`flex flex-col items-center gap-2 p-4 rounded-xl ${l.bg} transition-colors text-center`}>
+                    <span className="text-2xl" aria-hidden="true">{l.icon}</span>
+                    <span className={`text-xs font-medium ${l.text}`}>{l.label}</span>
+                  </Link>
+                ))}
               </div>
-            ))}
-          </div>
+            </Card>
+          </>
         )}
       </div>
-    </div>
+    </AdminLayout>
   );
 }

@@ -1,44 +1,83 @@
 import React from 'react';
-import { cn } from '../../lib/cn';
+import {
+  BarChart as RechartsBarChart,
+  Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
+} from 'recharts';
 
-interface DataItem {
-  label: string;
-  value: number;
-  color?: string;
+/**
+ * BarChart — perbandingan nilai statistik.
+ * Pakai prop schema: data: { name, nilai, satuan? }
+ * Default export agar bisa diimport sebagai: import BarChart from './BarChart'
+ *
+ * Fix: sebelumnya named export `export function BarChart` dengan schema
+ * berbeda {label, value}. Sekarang default export dengan schema {name, nilai, satuan}.
+ */
+
+interface BarChartProps {
+  data: { name: string; nilai: number; satuan?: string }[];
+  title?: string;
 }
 
-interface Props {
-  data: DataItem[];
-  colorScheme?: 'multi' | 'brand';
-  className?: string;
-}
+// Palet warna primary + accent dari design system (PRD §6.1)
+const CHART_COLORS = ['#0284c7', '#38bdf8', '#f59e0b', '#7dd3fc', '#fcd34d'];
 
-const COLORS = ['#3B82F6','#10B981','#F59E0B','#EF4444','#8B5CF6','#EC4899','#06B6D4','#84CC16'];
-
-export function BarChart({ data, colorScheme = 'multi', className }: Props) {
-  if (!data.length) return (
-    <div className="flex items-center justify-center h-40 text-sm text-neutral-400">Tidak ada data.</div>
-  );
-
-  const max = Math.max(...data.map(d => d.value), 1);
+export default function BarChart({ data, title }: BarChartProps) {
+  if (data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-36 text-neutral-400 text-xs">
+        Tidak ada data
+      </div>
+    );
+  }
 
   return (
-    <div className={cn('space-y-2', className)}>
-      {data.map((item, i) => {
-        const pct = (item.value / max) * 100;
-        const color = item.color || (colorScheme === 'brand' ? '#3B82F6' : COLORS[i % COLORS.length]);
-        return (
-          <div key={item.label} className="flex items-center gap-3">
-            <div className="w-28 text-xs text-neutral-600 truncate flex-shrink-0 text-right">{item.label}</div>
-            <div className="flex-1 flex items-center gap-2">
-              <div className="flex-1 h-5 rounded-full bg-neutral-100 overflow-hidden">
-                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: color }} />
-              </div>
-              <span className="text-xs font-medium text-neutral-700 w-6 text-right flex-shrink-0">{item.value}</span>
-            </div>
-          </div>
-        );
-      })}
+    <div>
+      {title && (
+        <h4 className="text-xs font-semibold text-neutral-700 mb-3 uppercase tracking-wide">
+          {title}
+        </h4>
+      )}
+      <ResponsiveContainer width="100%" height={150}>
+        <RechartsBarChart
+          data={data}
+          margin={{ top: 4, right: 4, bottom: 4, left: 0 }}
+          barCategoryGap="30%"
+        >
+          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+          <XAxis
+            dataKey="name"
+            tick={{ fontSize: 10, fill: '#94a3b8' }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <YAxis
+            tick={{ fontSize: 10, fill: '#94a3b8' }}
+            axisLine={false}
+            tickLine={false}
+            width={36}
+            tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)}
+          />
+          <Tooltip
+            contentStyle={{
+              fontSize: 12,
+              borderRadius: 10,
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+              padding: '8px 12px',
+            }}
+            formatter={(v: number, _n: string, props: { payload?: { satuan?: string } }) => [
+              `${v.toLocaleString('id-ID')}${props.payload?.satuan ? ` ${props.payload.satuan}` : ''}`,
+              'Nilai',
+            ]}
+            cursor={{ fill: '#f1f5f9' }}
+          />
+          <Bar dataKey="nilai" radius={[6, 6, 0, 0]}>
+            {data.map((_, i) => (
+              <Cell key={`cell-${i}`} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+            ))}
+          </Bar>
+        </RechartsBarChart>
+      </ResponsiveContainer>
     </div>
   );
 }

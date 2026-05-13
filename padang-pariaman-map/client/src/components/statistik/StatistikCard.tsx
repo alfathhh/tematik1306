@@ -1,41 +1,53 @@
 import React from 'react';
-import { cn } from '../../lib/cn';
 
-type Color = 'brand' | 'green' | 'amber' | 'red' | 'neutral';
+/**
+ * StatistikCard — card angka besar untuk panel statistik.
+ * Prop schema: { indikator, nilai, satuan?, tahun? }
+ * Default export agar bisa diimport sebagai: import StatistikCard from './StatistikCard'
+ *
+ * Fix: sebelumnya named export `export function StatistikCard` dengan schema
+ * berbeda {label, value, color}. Sekarang default export dengan schema
+ * {indikator, nilai, satuan, tahun} sesuai yang dipakai StatistikPanel.tsx.
+ */
 
-interface Props {
-  label: string;
-  value: number | string;
-  icon?: React.ReactNode;
-  color?: Color;
-  subtitle?: string;
-  className?: string;
+interface StatistikCardProps {
+  indikator: string;
+  nilai: number;
+  satuan?: string;
+  tahun?: number;
 }
 
-const colorMap: Record<Color, { bg: string; icon: string; text: string }> = {
-  brand: { bg: 'bg-brand-50', icon: 'text-brand-600', text: 'text-brand-900' },
-  green: { bg: 'bg-emerald-50', icon: 'text-emerald-600', text: 'text-emerald-900' },
-  amber: { bg: 'bg-amber-50', icon: 'text-amber-600', text: 'text-amber-900' },
-  red:   { bg: 'bg-red-50', icon: 'text-red-600', text: 'text-red-900' },
-  neutral: { bg: 'bg-neutral-100', icon: 'text-neutral-600', text: 'text-neutral-900' },
-};
+export default function StatistikCard({ indikator, nilai, satuan, tahun }: StatistikCardProps) {
+  // Format angka besar: 1.500.000 → "1,5 jt", 1.500 → "1.500", dll.
+  const formattedNilai = nilai >= 1_000_000
+    ? `${(nilai / 1_000_000).toFixed(1)} jt`
+    : nilai >= 1_000
+      ? nilai.toLocaleString('id-ID')
+      : nilai % 1 !== 0
+        ? nilai.toFixed(2)
+        : String(nilai);
 
-export function StatistikCard({ label, value, icon, color = 'neutral', subtitle, className }: Props) {
-  const c = colorMap[color];
   return (
-    <div className={cn('bg-white rounded-2xl border border-neutral-100 shadow-soft p-4', className)}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-xs font-medium text-neutral-500 mb-1">{label}</div>
-          <div className={cn('text-2xl font-display font-bold', c.text)}>{value.toLocaleString('id-ID')}</div>
-          {subtitle && <div className="text-xs text-neutral-400 mt-0.5">{subtitle}</div>}
-        </div>
-        {icon && (
-          <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0', c.bg, c.icon)}>
-            {icon}
-          </div>
+    <div className="bg-white rounded-xl border border-neutral-200/60 shadow-soft p-4 hover:shadow-pop transition-shadow duration-250">
+      {/* Label indikator */}
+      <p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider truncate mb-1">
+        {indikator}
+      </p>
+
+      {/* Nilai besar */}
+      <div className="flex items-baseline gap-1.5">
+        <span className="font-display font-bold text-2xl text-neutral-900 leading-tight">
+          {formattedNilai}
+        </span>
+        {satuan && (
+          <span className="text-xs font-medium text-neutral-500">{satuan}</span>
         )}
       </div>
+
+      {/* Tahun */}
+      {tahun && (
+        <p className="text-[10px] text-neutral-400 mt-1">Data tahun {tahun}</p>
+      )}
     </div>
   );
 }

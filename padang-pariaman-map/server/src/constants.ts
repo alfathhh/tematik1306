@@ -1,7 +1,8 @@
 // Konstanta aplikasi backend
 
 // ===== WILAYAH =====
-export const KDKAB_PADANG_PARIAMAN = '1305';
+// Kode BPS resmi Kabupaten Padang Pariaman = 1306
+export const IDKAB_PADANG_PARIAMAN = '1306';
 
 // ===== IMPORT =====
 export const MAX_IMPORT_ROWS = 5000;

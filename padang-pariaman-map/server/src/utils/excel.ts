@@ -66,7 +66,7 @@ export async function createInfrastrukturExcel(data: Record<string, unknown>[]):
   const worksheet = workbook.addWorksheet('Data');
 
   // Header
-  worksheet.addRow(['nama', 'kategori', 'alamat', 'foto_url', 'lat', 'lng', 'kdkab', 'kdkec', 'kddesa', 'kdsls']);
+  worksheet.addRow(['nama', 'kategori', 'alamat', 'foto_url', 'lat', 'lng', 'idkab', 'idkec', 'iddesa', 'idsls']);
   const headerRow = worksheet.getRow(1);
   headerRow.font = { bold: true };
   headerRow.commit();
@@ -75,7 +75,7 @@ export async function createInfrastrukturExcel(data: Record<string, unknown>[]):
   for (const item of data) {
     worksheet.addRow([
       item.nama, item.kategori, item.alamat, item.fotoUrl,
-      item.lat, item.lng, item.kdkab, item.kdkec, item.kddesa, item.kdsls
+      item.lat, item.lng, item.idkab, item.idkec, item.iddesa, item.idsls
     ]);
   }
 
@@ -92,7 +92,7 @@ export async function createStatistikExcel(data: Record<string, unknown>[]): Pro
   const worksheet = workbook.addWorksheet('Data');
 
   // Header
-  worksheet.addRow(['kdkab', 'kdkec', 'kddesa', 'kdsls', 'indikator', 'nilai', 'satuan', 'tahun']);
+  worksheet.addRow(['idkab', 'idkec', 'iddesa', 'idsls', 'indikator', 'nilai', 'satuan', 'tahun']);
   const headerRow = worksheet.getRow(1);
   headerRow.font = { bold: true };
   headerRow.commit();
@@ -100,7 +100,7 @@ export async function createStatistikExcel(data: Record<string, unknown>[]): Pro
   // Data
   for (const item of data) {
     worksheet.addRow([
-      item.kdkab, item.kdkec, item.kddesa, item.kdsls,
+      item.idkab, item.idkec, item.iddesa, item.idsls,
       item.indikator, item.nilai, item.satuan, item.tahun
     ]);
   }

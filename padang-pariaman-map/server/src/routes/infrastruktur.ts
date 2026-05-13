@@ -3,60 +3,42 @@ import { PrismaClient } from '@prisma/client';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
 import { upload } from '../utils/upload';
 import { readExcelFile, cleanupFile, createInfrastrukturExcel, ImportError } from '../utils/excel';
-import { KDKAB_PADANG_PARIAMAN, MAX_IMPORT_ROWS } from '../constants';
+import { IDKAB_PADANG_PARIAMAN, MAX_IMPORT_ROWS } from '../constants';
 
 const router = Router();
 const prisma = new PrismaClient();
 
-// GET /api/infrastruktur — Ambil daftar infrastruktur dengan filter
+// GET /api/infrastruktur
 router.get('/', async (req: Request, res: Response): Promise<void> => {
-  const { kategori, kdkab, kdkec, kddesa, kdsls, search, page, limit } = req.query;
+  const { kategori, idkab, idkec, iddesa, idsls, search, page, limit } = req.query;
 
   try {
     const where: Record<string, unknown> = {};
 
-    // Filter kategori (bisa multiple, pisahkan koma)
     if (kategori) {
       const katList = String(kategori).split(',').map(k => k.trim()).filter(Boolean);
-      if (katList.length === 1) {
-        where.kategori = katList[0];
-      } else if (katList.length > 1) {
-        where.kategori = { in: katList };
-      }
+      if (katList.length === 1) where.kategori = katList[0];
+      else if (katList.length > 1) where.kategori = { in: katList };
     }
 
-    if (kdkab)  where.kdkab  = String(kdkab);
-    if (kdkec)  where.kdkec  = String(kdkec);
-    if (kddesa) where.kddesa = String(kddesa);
-    if (kdsls)  where.kdsls  = String(kdsls);
+    if (idkab)  where.idkab  = String(idkab);
+    if (idkec)  where.idkec  = String(idkec);
+    if (iddesa) where.iddesa = String(iddesa);
+    if (idsls)  where.idsls  = String(idsls);
 
-    // Search by nama (case-insensitive)
-    if (search) {
-      where.nama = { contains: String(search), mode: 'insensitive' };
-    }
+    if (search) where.nama = { contains: String(search), mode: 'insensitive' };
 
-    // Pagination (untuk admin)
     const pageNum  = page  ? parseInt(String(page))  : 1;
     const limitNum = limit ? parseInt(String(limit)) : undefined;
     const skip = limitNum ? (pageNum - 1) * limitNum : undefined;
 
     const [data, total] = await Promise.all([
-      prisma.infrastruktur.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limitNum,
-      }),
+      prisma.infrastruktur.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limitNum }),
       prisma.infrastruktur.count({ where }),
     ]);
 
     if (limitNum) {
-      res.json({
-        data,
-        total,
-        page: pageNum,
-        totalPages: Math.ceil(total / limitNum),
-      });
+      res.json({ data, total, page: pageNum, totalPages: Math.ceil(total / limitNum) });
     } else {
       res.json({ data, total });
     }
@@ -66,18 +48,17 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
   }
 });
 
-// GET /api/infrastruktur/export — Export ke Excel (admin) — harus sebelum /:id
+// GET /api/infrastruktur/export
 router.get('/export', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
-  const { kdkec, kddesa, kategori } = req.query;
+  const { idkec, iddesa, kategori } = req.query;
 
   try {
     const where: Record<string, unknown> = {};
-    if (kdkec)    where.kdkec    = String(kdkec);
-    if (kddesa)   where.kddesa   = String(kddesa);
+    if (idkec)    where.idkec    = String(idkec);
+    if (iddesa)   where.iddesa   = String(iddesa);
     if (kategori) where.kategori = String(kategori);
 
     const data = await prisma.infrastruktur.findMany({ where, orderBy: { nama: 'asc' } });
-
     const buffer = await createInfrastrukturExcel(data as Record<string, unknown>[]);
     const tanggal = new Date().toISOString().split('T')[0].replace(/-/g, '');
 
@@ -90,16 +71,12 @@ router.get('/export', authMiddleware, async (req: AuthRequest, res: Response): P
   }
 });
 
-// GET /api/infrastruktur/:id — Ambil satu infrastruktur
+// GET /api/infrastruktur/:id
 router.get('/:id', async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(req.params.id);
-
   try {
     const infra = await prisma.infrastruktur.findUnique({ where: { id } });
-    if (!infra) {
-      res.status(404).json({ error: 'Infrastruktur tidak ditemukan' });
-      return;
-    }
+    if (!infra) { res.status(404).json({ error: 'Infrastruktur tidak ditemukan' }); return; }
     res.json(infra);
   } catch (error) {
     console.error('Error GET infrastruktur by id:', error);
@@ -107,60 +84,43 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
   }
 });
 
-// POST /api/infrastruktur — Tambah infrastruktur baru (admin)
+// POST /api/infrastruktur
 router.post('/', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
-  const { nama, kategori, alamat, fotoUrl, lat, lng, kdkab, kdkec, kddesa, kdsls } = req.body;
+  const { nama, kategori, alamat, fotoUrl, lat, lng, idkab, idkec, iddesa, idsls } = req.body;
 
-  if (!nama || !kategori || lat === undefined || lng === undefined || !kdkab || !kdkec || !kddesa) {
-    res.status(400).json({ error: 'Field nama, kategori, lat, lng, kdkab, kdkec, kddesa wajib diisi' });
+  if (!nama || !kategori || lat === undefined || lng === undefined || !idkab || !idkec || !iddesa) {
+    res.status(400).json({ error: 'Field nama, kategori, lat, lng, idkab, idkec, iddesa wajib diisi' });
     return;
   }
 
   const latNum = parseFloat(lat);
   const lngNum = parseFloat(lng);
-
-  if (isNaN(latNum) || latNum < -90 || latNum > 90) {
-    res.status(400).json({ error: 'Latitude tidak valid (harus antara -90 dan 90)' });
-    return;
-  }
-  if (isNaN(lngNum) || lngNum < -180 || lngNum > 180) {
-    res.status(400).json({ error: 'Longitude tidak valid (harus antara -180 dan 180)' });
-    return;
-  }
+  if (isNaN(latNum) || latNum < -90 || latNum > 90) { res.status(400).json({ error: 'Latitude tidak valid' }); return; }
+  if (isNaN(lngNum) || lngNum < -180 || lngNum > 180) { res.status(400).json({ error: 'Longitude tidak valid' }); return; }
 
   try {
     const infra = await prisma.infrastruktur.create({
-      data: { nama, kategori, alamat, fotoUrl, lat: latNum, lng: lngNum, kdkab, kdkec, kddesa, kdsls: kdsls || null },
+      data: { nama, kategori, alamat, fotoUrl, lat: latNum, lng: lngNum, idkab, idkec, iddesa, idsls: idsls || null },
     });
     res.status(201).json(infra);
   } catch (error: unknown) {
-    if ((error as { code?: string }).code === 'P2003') {
-      res.status(400).json({ error: 'Kategori tidak valid' });
-      return;
-    }
+    if ((error as { code?: string }).code === 'P2003') { res.status(400).json({ error: 'Kategori tidak valid' }); return; }
     console.error('Error POST infrastruktur:', error);
     res.status(500).json({ error: 'Terjadi kesalahan server' });
   }
 });
 
-// POST /api/infrastruktur/import — Import dari Excel (admin)
+// POST /api/infrastruktur/import
 router.post('/import', authMiddleware, upload.single('file'), async (req: AuthRequest, res: Response): Promise<void> => {
-  if (!req.file) {
-    res.status(400).json({ error: 'File Excel (.xlsx) wajib diunggah' });
-    return;
-  }
+  if (!req.file) { res.status(400).json({ error: 'File Excel (.xlsx) wajib diunggah' }); return; }
 
   const filePath = req.file.path;
-
   try {
     const rows = await readExcelFile(filePath);
-
     if (rows.length > MAX_IMPORT_ROWS) {
-      res.status(400).json({ error: `Jumlah baris melebihi batas maksimum ${MAX_IMPORT_ROWS} baris` });
-      return;
+      res.status(400).json({ error: `Jumlah baris melebihi batas maksimum ${MAX_IMPORT_ROWS} baris` }); return;
     }
 
-    // Ambil semua kategori yang valid dari DB
     const kategoriValid = await prisma.kategoriInfra.findMany({ select: { value: true } });
     const kategoriSet = new Set(kategoriValid.map(k => k.value));
 
@@ -169,38 +129,32 @@ router.post('/import', authMiddleware, upload.single('file'), async (req: AuthRe
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      const nomorBaris = i + 2; // +2 karena baris 1 adalah header
-
+      const nomorBaris = i + 2;
       try {
-        const nama      = String(row['nama'] ?? '').trim();
-        const kategori  = String(row['kategori'] ?? '').trim();
-        const alamat    = row['alamat'] ? String(row['alamat']).trim() : null;
-        // foto_url opsional — bisa dikosongkan di Excel, foto bisa diupload lewat admin panel
-        const fotoUrl   = row['foto_url'] ? String(row['foto_url']).trim() : null;
-        const lat       = parseFloat(String(row['lat'] ?? ''));
-        const lng       = parseFloat(String(row['lng'] ?? ''));
-        const kdkab     = String(row['kdkab'] ?? '').trim();
-        const kdkec     = String(row['kdkec'] ?? '').trim();
-        const kddesa    = String(row['kddesa'] ?? '').trim();
-        const kdsls     = row['kdsls'] ? String(row['kdsls']).trim() : null;
+        const nama    = String(row['nama']    ?? '').trim();
+        const kategori = String(row['kategori'] ?? '').trim();
+        const alamat  = row['alamat']   ? String(row['alamat']).trim()   : null;
+        const fotoUrl = row['foto_url'] ? String(row['foto_url']).trim() : null;
+        const lat     = parseFloat(String(row['lat'] ?? ''));
+        const lng     = parseFloat(String(row['lng'] ?? ''));
+        const idkab   = String(row['idkab']  ?? '').trim();
+        const idkec   = String(row['idkec']  ?? '').trim();
+        const iddesa  = String(row['iddesa'] ?? '').trim();
+        const idsls   = row['idsls'] ? String(row['idsls']).trim() : null;
 
-        // Validasi field wajib
-        if (!nama) { errors.push({ baris: nomorBaris, pesan: 'Kolom nama tidak boleh kosong' }); continue; }
+        if (!nama)    { errors.push({ baris: nomorBaris, pesan: 'Kolom nama tidak boleh kosong' }); continue; }
         if (!kategori || !kategoriSet.has(kategori)) { errors.push({ baris: nomorBaris, pesan: `Kategori "${kategori}" tidak valid` }); continue; }
-        if (isNaN(lat) || lat < -90 || lat > 90) { errors.push({ baris: nomorBaris, pesan: 'Latitude tidak valid' }); continue; }
+        if (isNaN(lat) || lat < -90 || lat > 90)   { errors.push({ baris: nomorBaris, pesan: 'Latitude tidak valid' }); continue; }
         if (isNaN(lng) || lng < -180 || lng > 180) { errors.push({ baris: nomorBaris, pesan: 'Longitude tidak valid' }); continue; }
-        if (kdkab !== KDKAB_PADANG_PARIAMAN) { errors.push({ baris: nomorBaris, pesan: `kdkab harus "${KDKAB_PADANG_PARIAMAN}"` }); continue; }
-        if (kdkec.length !== 6 || !kdkec.startsWith(KDKAB_PADANG_PARIAMAN)) { errors.push({ baris: nomorBaris, pesan: 'kdkec tidak valid (harus 6 digit, dimulai dengan 1305)' }); continue; }
-        if (kddesa.length !== 10 || !kddesa.startsWith(kdkec)) { errors.push({ baris: nomorBaris, pesan: 'kddesa tidak valid (harus 10 digit)' }); continue; }
-        if (kdsls && (kdsls.length !== 12 || !kdsls.startsWith(kddesa))) { errors.push({ baris: nomorBaris, pesan: 'kdsls tidak valid (harus 12 digit)' }); continue; }
-        // Validasi URL foto jika diisi (opsional)
+        if (idkab !== IDKAB_PADANG_PARIAMAN) { errors.push({ baris: nomorBaris, pesan: `idkab harus "${IDKAB_PADANG_PARIAMAN}"` }); continue; }
+        if (idkec.length !== 7 || !idkec.startsWith(IDKAB_PADANG_PARIAMAN)) { errors.push({ baris: nomorBaris, pesan: 'idkec tidak valid (harus 7 digit, dimulai dengan 1306)' }); continue; }
+        if (iddesa.length !== 10 || !iddesa.startsWith(idkec)) { errors.push({ baris: nomorBaris, pesan: 'iddesa tidak valid (harus 10 digit)' }); continue; }
+        if (idsls && (idsls.length !== 14 || !idsls.startsWith(iddesa))) { errors.push({ baris: nomorBaris, pesan: 'idsls tidak valid (harus 14 digit)' }); continue; }
         if (fotoUrl && !fotoUrl.startsWith('http://') && !fotoUrl.startsWith('https://') && !fotoUrl.startsWith('/uploads/')) {
-          errors.push({ baris: nomorBaris, pesan: 'foto_url harus berupa URL valid (http/https) — biarkan kosong jika belum ada foto' }); continue;
+          errors.push({ baris: nomorBaris, pesan: 'foto_url harus berupa URL valid' }); continue;
         }
 
-        await prisma.infrastruktur.create({
-          data: { nama, kategori, alamat, fotoUrl, lat, lng, kdkab, kdkec, kddesa, kdsls },
-        });
+        await prisma.infrastruktur.create({ data: { nama, kategori, alamat, fotoUrl, lat, lng, idkab, idkec, iddesa, idsls } });
         berhasil++;
       } catch {
         errors.push({ baris: nomorBaris, pesan: 'Gagal menyimpan baris ini' });
@@ -216,51 +170,41 @@ router.post('/import', authMiddleware, upload.single('file'), async (req: AuthRe
   }
 });
 
-// PUT /api/infrastruktur/:id — Edit infrastruktur (admin)
+// PUT /api/infrastruktur/:id
 router.put('/:id', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
   const id = parseInt(req.params.id);
-  const { nama, kategori, alamat, fotoUrl, lat, lng, kdkab, kdkec, kddesa, kdsls } = req.body;
+  const { nama, kategori, alamat, fotoUrl, lat, lng, idkab, idkec, iddesa, idsls } = req.body;
 
-  if (!nama || !kategori || lat === undefined || lng === undefined || !kdkab || !kdkec || !kddesa) {
-    res.status(400).json({ error: 'Field nama, kategori, lat, lng, kdkab, kdkec, kddesa wajib diisi' });
-    return;
+  if (!nama || !kategori || lat === undefined || lng === undefined || !idkab || !idkec || !iddesa) {
+    res.status(400).json({ error: 'Field nama, kategori, lat, lng, idkab, idkec, iddesa wajib diisi' }); return;
   }
 
   const latNum = parseFloat(lat);
   const lngNum = parseFloat(lng);
-  if (isNaN(latNum) || latNum < -90 || latNum > 90) {
-    res.status(400).json({ error: 'Latitude tidak valid' }); return;
-  }
-  if (isNaN(lngNum) || lngNum < -180 || lngNum > 180) {
-    res.status(400).json({ error: 'Longitude tidak valid' }); return;
-  }
+  if (isNaN(latNum) || latNum < -90 || latNum > 90)   { res.status(400).json({ error: 'Latitude tidak valid' }); return; }
+  if (isNaN(lngNum) || lngNum < -180 || lngNum > 180) { res.status(400).json({ error: 'Longitude tidak valid' }); return; }
 
   try {
     const infra = await prisma.infrastruktur.update({
       where: { id },
-      data: { nama, kategori, alamat, fotoUrl, lat: latNum, lng: lngNum, kdkab, kdkec, kddesa, kdsls: kdsls || null },
+      data: { nama, kategori, alamat, fotoUrl, lat: latNum, lng: lngNum, idkab, idkec, iddesa, idsls: idsls || null },
     });
     res.json(infra);
   } catch (error: unknown) {
-    if ((error as { code?: string }).code === 'P2025') {
-      res.status(404).json({ error: 'Infrastruktur tidak ditemukan' }); return;
-    }
+    if ((error as { code?: string }).code === 'P2025') { res.status(404).json({ error: 'Infrastruktur tidak ditemukan' }); return; }
     console.error('Error PUT infrastruktur:', error);
     res.status(500).json({ error: 'Terjadi kesalahan server' });
   }
 });
 
-// DELETE /api/infrastruktur/:id — Hapus infrastruktur (admin)
+// DELETE /api/infrastruktur/:id
 router.delete('/:id', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
   const id = parseInt(req.params.id);
-
   try {
     await prisma.infrastruktur.delete({ where: { id } });
     res.json({ message: 'Infrastruktur berhasil dihapus' });
   } catch (error: unknown) {
-    if ((error as { code?: string }).code === 'P2025') {
-      res.status(404).json({ error: 'Infrastruktur tidak ditemukan' }); return;
-    }
+    if ((error as { code?: string }).code === 'P2025') { res.status(404).json({ error: 'Infrastruktur tidak ditemukan' }); return; }
     console.error('Error DELETE infrastruktur:', error);
     res.status(500).json({ error: 'Terjadi kesalahan server' });
   }

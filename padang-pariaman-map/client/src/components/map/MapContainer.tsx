@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { MapContainer as LeafletMap, TileLayer, useMapEvents, useMap } from 'react-leaflet';
 import {
   MAP_CENTER, MAP_DEFAULT_ZOOM, MAP_MIN_ZOOM, MAP_MAX_ZOOM,
-  BASEMAP_OSM, BASEMAP_GOOGLE, BASEMAP_OSM_ATTRIBUTION, BASEMAP_GOOGLE_ATTRIBUTION,
+  BASEMAP_OSM, BASEMAP_GOOGLE_SATELLITE, BASEMAP_GOOGLE_ROAD, BASEMAP_OSM_ATTRIBUTION, BASEMAP_GOOGLE_ATTRIBUTION,
 } from '../../constants';
 import { useMapStore } from '../../store/mapStore';
 import { useFilterStore } from '../../store/filterStore';
@@ -57,16 +57,29 @@ function BasemapLayer() {
     setTimeout(() => map.invalidateSize({ animate: false }), 100);
   }, [basemap, map]);
 
-  return basemap === 'osm' ? (
+  if (basemap === 'osm') {
+    return (
+      <TileLayer
+        key="osm"
+        url={BASEMAP_OSM}
+        attribution={BASEMAP_OSM_ATTRIBUTION}
+      />
+    );
+  }
+  if (basemap === 'google-satellite') {
+    return (
+      <TileLayer
+        key="google-satellite"
+        url={BASEMAP_GOOGLE_SATELLITE}
+        attribution={BASEMAP_GOOGLE_ATTRIBUTION}
+        maxZoom={20}
+      />
+    );
+  }
+  return (
     <TileLayer
-      key="osm"
-      url={BASEMAP_OSM}
-      attribution={BASEMAP_OSM_ATTRIBUTION}
-    />
-  ) : (
-    <TileLayer
-      key="google"
-      url={BASEMAP_GOOGLE}
+      key="google-road"
+      url={BASEMAP_GOOGLE_ROAD}
       attribution={BASEMAP_GOOGLE_ATTRIBUTION}
       maxZoom={20}
     />
@@ -75,16 +88,16 @@ function BasemapLayer() {
 
 /** MapContainer — komponen utama peta interaktif. */
 export default function MapContainer({ kategoriList }: MapContainerProps) {
-  const { kategoriAktif, kdkab, kdkec, kddesa, kdsls } = useFilterStore();
+  const { kategoriAktif, idkab, idkec, iddesa, idsls } = useFilterStore();
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   // Fetch infrastruktur sesuai filter aktif
   const { data: infrastruktur } = useInfrastruktur({
     kategori: kategoriAktif,
-    kdkab,
-    kdkec:  kdkec  || undefined,
-    kddesa: kddesa || undefined,
-    kdsls:  kdsls  || undefined,
+    idkab,
+    idkec:  idkec  || undefined,
+    iddesa: iddesa || undefined,
+    idsls:  idsls  || undefined,
     enabled: kategoriAktif.length > 0,
   });
 

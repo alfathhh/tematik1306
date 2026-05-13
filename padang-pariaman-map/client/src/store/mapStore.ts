@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { MAP_CENTER, MAP_DEFAULT_ZOOM } from '../constants';
 import type { Map as LeafletMap } from 'leaflet';
 
-type BasemapType = 'osm' | 'google';
+type BasemapType = 'osm' | 'google-satellite' | 'google-road';
 
 interface MapState {
   center: [number, number];
@@ -28,9 +28,14 @@ export const useMapStore = create<MapState>((set) => ({
   setBasemap: (basemap) => set({ basemap }),
 
   toggleBasemap: () =>
-    set((state) => ({
-      basemap: state.basemap === 'osm' ? 'google' : 'osm',
-    })),
+    set((state) => {
+      const cycle: Record<BasemapType, BasemapType> = {
+        'osm': 'google-satellite',
+        'google-satellite': 'google-road',
+        'google-road': 'osm',
+      };
+      return { basemap: cycle[state.basemap] };
+    }),
 
   setMapInstance: (map) => set({ mapInstance: map }),
 }));

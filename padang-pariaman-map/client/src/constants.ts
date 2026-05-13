@@ -21,6 +21,7 @@ export const DEBOUNCE_DELAY_MS = 300;
 
 // ===== BASEMAP URLS =====
 export const BASEMAP_OSM = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-export const BASEMAP_GOOGLE = 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}';
+export const BASEMAP_GOOGLE_SATELLITE = 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}';
+export const BASEMAP_GOOGLE_ROAD = 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}';
 export const BASEMAP_OSM_ATTRIBUTION = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 export const BASEMAP_GOOGLE_ATTRIBUTION = '© Google Maps';

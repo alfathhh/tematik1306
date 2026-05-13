@@ -6,9 +6,9 @@ import { cn } from '../../lib/cn';
  * Cocok untuk cascade dropdown wilayah.
  *
  * Contoh:
- *   <Select label="Kecamatan" value={kdkec} onChange={...}>
+ *   <Select label="Kecamatan" value={idkec} onChange={...}>
  *     <option value="">Semua Kecamatan</option>
- *     {kecamatan.map(k => <option key={k.kdkec} value={k.kdkec}>{k.nama}</option>)}
+ *     {kecamatan.map(k => <option key={k.idkec} value={k.idkec}>{k.nama}</option>)}
  *   </Select>
  */
 

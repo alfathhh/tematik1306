@@ -3,24 +3,35 @@ import { useMapStore } from '../../store/mapStore';
 
 /**
  * BasemapToggle — tombol melayang kanan-bawah peta untuk ganti basemap.
- *
- * Fix Bug #3:
- * - Sebelumnya mendefinisikan BasemapId = 'osm'|'satellite'|'topo' yang tidak
- *   ada di mapStore (hanya 'osm'|'google') → setBasemap tidak berfungsi.
- * - Sebelumnya tidak punya posisi absolute → tenggelam di bawah komponen lain.
- * - Sekarang: hanya 2 opsi (osm ↔ google), posisi absolute bottom-6 right-3,
- *   z-[1000] agar di atas tile Leaflet, render di luar LeafletMap container.
+ * Cycle: OSM → Google Satellite → Google Road → OSM
  */
 export default function BasemapToggle() {
   const { basemap, toggleBasemap } = useMapStore();
-  const isOsm = basemap === 'osm';
+
+  const getLabel = () => {
+    switch (basemap) {
+      case 'osm': return 'Satelit';
+      case 'google-satellite': return 'Jalan';
+      case 'google-road': return 'Peta';
+      default: return 'Peta';
+    }
+  };
+
+  const getEmoji = () => {
+    switch (basemap) {
+      case 'osm': return '🛰️';
+      case 'google-satellite': return '🛣️';
+      case 'google-road': return '🗺️';
+      default: return '🗺️';
+    }
+  };
 
   return (
     <button
       type="button"
       onClick={toggleBasemap}
-      aria-label={`Ganti ke ${isOsm ? 'Google Maps' : 'OpenStreetMap'}`}
-      title={`Ganti ke ${isOsm ? 'Google Maps' : 'OpenStreetMap'}`}
+      aria-label={`Ganti ke ${getLabel()}`}
+      title={`Ganti ke ${getLabel()}`}
       className="absolute bottom-6 right-3 z-[1000] flex items-center gap-1.5 px-3 py-2 rounded-xl shadow-pop text-xs font-medium text-neutral-700 transition-colors duration-250 focus:outline-none focus-visible:shadow-focus"
       style={{
         background: 'rgba(255,255,255,0.92)',
@@ -29,8 +40,8 @@ export default function BasemapToggle() {
         border: '1px solid rgba(226,232,240,0.7)',
       }}
     >
-      <span aria-hidden="true">{isOsm ? '🛰️' : '🗺️'}</span>
-      <span className="hidden sm:inline">{isOsm ? 'Satelit' : 'Peta'}</span>
+      <span aria-hidden="true">{getEmoji()}</span>
+      <span className="hidden sm:inline">{getLabel()}</span>
     </button>
   );
 }

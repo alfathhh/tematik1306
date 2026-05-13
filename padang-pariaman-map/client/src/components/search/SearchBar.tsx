@@ -1,118 +1,93 @@
 import React, { useState, useRef, useEffect } from 'react';
 import api from '../../lib/api';
-import { Infrastruktur, KategoriInfra } from '../../types';
-import { useDebounce } from '../../hooks/useDebounce';
-import { useMapStore } from '../../store/mapStore';
-import { DEBOUNCE_DELAY_MS } from '../../constants';
+import type { Infrastruktur } from '../../types';
+import { cn } from '../../lib/cn';
 
-interface SearchBarProps {
-  kategoriMap: Map<string, KategoriInfra>;
+interface Props {
+  onSelect?: (infra: Infrastruktur) => void;
+  className?: string;
 }
 
-// Komponen search infrastruktur dengan debounce dan flyTo
-export default function SearchBar({ kategoriMap }: SearchBarProps) {
+export default function SearchBar({ onSelect, className }: Props) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Infrastruktur[]>([]);
   const [loading, setLoading] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
-  const { mapInstance } = useMapStore();
-  const debouncedQuery = useDebounce(query, DEBOUNCE_DELAY_MS);
+  const [open, setOpen] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Fetch hasil pencarian saat query berubah (debounced)
   useEffect(() => {
-    if (debouncedQuery.length < 2) {
-      setResults([]);
-      setIsOpen(false);
-      return;
+    function handleClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
     }
-
-    setLoading(true);
-    api.get('/infrastruktur', {
-      params: { search: debouncedQuery, limit: 5 },
-    })
-      .then(res => {
-        const data = res.data.data || res.data;
-        setResults(data);
-        setIsOpen(data.length > 0);
-      })
-      .catch(() => setResults([]))
-      .finally(() => setLoading(false));
-  }, [debouncedQuery]);
-
-  // Tutup dropdown saat klik di luar
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  // Klik hasil pencarian → flyTo + open popup
-  const handleSelect = (infra: Infrastruktur) => {
-    if (mapInstance) {
-      mapInstance.flyTo([infra.lat, infra.lng], 16, { duration: 1 });
-    }
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value;
+    setQuery(val);
+    clearTimeout(timerRef.current);
+    if (!val.trim()) { setResults([]); setOpen(false); return; }
+    timerRef.current = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const res = await api.get('/infrastruktur/search', { params: { q: val } });
+        setResults(res.data);
+        setOpen(true);
+      } catch { setResults([]); }
+      finally { setLoading(false); }
+    }, 300);
+  }
+
+  function handleSelect(infra: Infrastruktur) {
     setQuery(infra.nama);
-    setIsOpen(false);
-  };
+    setOpen(false);
+    onSelect?.(infra);
+  }
 
   return (
-    <div ref={containerRef} className="relative w-full max-w-md">
-      {/* Input search */}
+    <div ref={containerRef} className={cn('relative', className)}>
       <div className="relative">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
         <input
           type="text"
           value={query}
-          onChange={e => setQuery(e.target.value)}
-          onFocus={() => results.length > 0 && setIsOpen(true)}
+          onChange={handleChange}
+          onFocus={() => results.length && setOpen(true)}
           placeholder="Cari infrastruktur..."
-          className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-xl shadow-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-neutral-200/60 bg-white/90 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400 shadow-soft placeholder:text-neutral-400"
+          aria-label="Cari infrastruktur"
+          aria-autocomplete="list"
+          aria-expanded={open}
         />
-        {loading && (
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs animate-spin">⟳</span>
-        )}
-        {query && !loading && (
-          <button
-            onClick={() => { setQuery(''); setResults([]); setIsOpen(false); }}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-          >
-            ✕
+        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none">
+          {loading
+            ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="animate-spin"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.2"/><path d="M12 2a10 10 0 010 20" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+            : <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2"/><path d="M21 21l-4.35-4.35" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>}
+        </div>
+        {query && (
+          <button type="button" onClick={() => { setQuery(''); setResults([]); setOpen(false); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
           </button>
         )}
       </div>
-
-      {/* Dropdown hasil */}
-      {isOpen && results.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-[2000] overflow-hidden">
-          {results.map(infra => {
-            const kat = kategoriMap.get(infra.kategori);
-            return (
-              <button
-                key={infra.id}
-                onClick={() => handleSelect(infra)}
-                className="w-full text-left px-4 py-2.5 hover:bg-gray-50 flex items-center gap-3 border-b border-gray-50 last:border-0 transition-colors"
-              >
-                <span
-                  className="w-7 h-7 flex items-center justify-center rounded-full text-sm flex-shrink-0"
-                  style={{ backgroundColor: kat?.color ?? '#7F8C8D', color: 'white' }}
-                >
-                  {kat?.icon ?? '📍'}
-                </span>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-800 truncate">{infra.nama}</p>
-                  {infra.alamat && (
-                    <p className="text-xs text-gray-500 truncate">{infra.alamat}</p>
-                  )}
-                </div>
-              </button>
-            );
-          })}
+      {open && results.length > 0 && (
+        <div className="absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl border border-neutral-200/60 shadow-pop z-50 overflow-hidden max-h-60 overflow-y-auto panel-scroll">
+          {results.map(infra => (
+            <button key={infra.id} type="button" onClick={() => handleSelect(infra)} className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-neutral-50 transition-colors">
+              {infra.kategori && <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: infra.kategori.warna || '#6B7280' }} />}
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-neutral-900 truncate">{infra.nama}</div>
+                {(infra.kecamatan || infra.kategori) && (
+                  <div className="text-[11px] text-neutral-500 truncate">{[infra.kategori?.label, infra.kecamatan?.nama].filter(Boolean).join(' · ')}</div>
+                )}
+              </div>
+            </button>
+          ))}
         </div>
+      )}
+      {open && !results.length && !loading && query && (
+        <div className="absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl border border-neutral-200/60 shadow-pop z-50 px-4 py-3 text-sm text-neutral-400">Tidak ditemukan hasil.</div>
       )}
     </div>
   );

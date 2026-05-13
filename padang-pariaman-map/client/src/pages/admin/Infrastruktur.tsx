@@ -156,6 +156,19 @@ export default function AdminInfrastruktur() {
     a.click(); URL.revokeObjectURL(url);
   };
 
+  const handleDownloadTemplate = async () => {
+    try {
+      const res = await api.get('/template/infrastruktur', { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a'); a.href = url;
+      a.download = 'template_infrastruktur.xlsx';
+      a.click(); URL.revokeObjectURL(url);
+      toast.success('Template berhasil diunduh');
+    } catch (err) {
+      toast.error('Gagal mengunduh template');
+    }
+  };
+
   const getKat = (v: string) => kategoriList.find(k => k.value === v);
 
   return (
@@ -168,6 +181,7 @@ export default function AdminInfrastruktur() {
               {importing ? <><span className="w-3.5 h-3.5 border-2 border-success-500 border-t-transparent rounded-full animate-spin" /> Importing...</> : <>📥 Import Excel</>}
               <input type="file" accept=".xlsx" className="hidden" onChange={handleImport} disabled={importing} />
             </label>
+            <Button variant="secondary" size="sm" onClick={handleDownloadTemplate}>📋 Template</Button>
             <Button variant="secondary" size="sm" onClick={handleExport}>📤 Export Excel</Button>
           </div>
           <div className="flex gap-2 flex-wrap items-center">

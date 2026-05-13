@@ -1,62 +1,91 @@
-import React, { useMemo } from 'react';
-import { cn } from '../../lib/cn';
+import React from 'react';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 
-interface DataItem {
-  label: string;
-  value: number;
-  color?: string;
+/**
+ * DonutChart — distribusi kategori infrastruktur.
+ * Prop schema: data: { name, value, color }
+ * Default export agar bisa diimport sebagai: import DonutChart from './DonutChart'
+ *
+ * Fix: sebelumnya named export `export function DonutChart` dengan schema
+ * berbeda {label, value}. Sekarang default export dengan schema {name, value, color}.
+ */
+
+interface DonutChartProps {
+  data: { name: string; value: number; color: string }[];
+  title?: string;
 }
 
-interface Props {
-  data: DataItem[];
-  size?: number;
-  className?: string;
-}
+export default function DonutChart({ data, title }: DonutChartProps) {
+  const total = data.reduce((sum, d) => sum + d.value, 0);
 
-const COLORS = ['#3B82F6','#10B981','#F59E0B','#EF4444','#8B5CF6','#EC4899','#06B6D4','#84CC16'];
-
-export function DonutChart({ data, size = 140, className }: Props) {
-  const total = useMemo(() => data.reduce((s, d) => s + d.value, 0), [data]);
-
-  const slices = useMemo(() => {
-    const r = 42;
-    const circ = 2 * Math.PI * r;
-    let offset = 0;
-    return data.map((item, i) => {
-      const pct = total > 0 ? item.value / total : 0;
-      const len = pct * circ;
-      const slice = { ...item, color: item.color || COLORS[i % COLORS.length], dasharray: `${len} ${circ - len}`, dashoffset: -offset, pct };
-      offset += len;
-      return slice;
-    });
-  }, [data, total]);
-
-  if (!data.length || total === 0) return (
-    <div className="flex items-center justify-center h-32 text-sm text-neutral-400">Tidak ada data.</div>
-  );
+  if (data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-36 text-neutral-400 text-xs">
+        Tidak ada data
+      </div>
+    );
+  }
 
   return (
-    <div className={cn('flex flex-col items-center gap-4', className)}>
-      <div className="relative" style={{ width: size, height: size }}>
-        <svg width={size} height={size} viewBox="0 0 100 100">
-          {slices.map((s, i) => (
-            <circle key={i} cx="50" cy="50" r="42" fill="none" stroke={s.color} strokeWidth="14" strokeDasharray={s.dasharray} strokeDashoffset={s.dashoffset} style={{ transform: 'rotate(-90deg)', transformOrigin: '50% 50%' }} />
-          ))}
-          <circle cx="50" cy="50" r="28" fill="white" />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-lg font-display font-bold text-neutral-900">{total}</span>
-          <span className="text-[9px] text-neutral-500 uppercase tracking-wide">Total</span>
+    <div>
+      {title && (
+        <h4 className="text-xs font-semibold text-neutral-700 mb-3 uppercase tracking-wide">
+          {title}
+        </h4>
+      )}
+
+      <div className="flex items-center gap-4">
+        {/* Donut */}
+        <div className="flex-shrink-0">
+          <ResponsiveContainer width={100} height={100}>
+            <PieChart>
+              <Pie
+                data={data}
+                cx="50%"
+                cy="50%"
+                innerRadius={30}
+                outerRadius={46}
+                paddingAngle={2}
+                dataKey="value"
+                strokeWidth={0}
+              >
+                {data.map((entry, i) => (
+                  <Cell key={`cell-${i}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip
+                contentStyle={{
+                  fontSize: 11,
+                  borderRadius: 10,
+                  border: '1px solid #e2e8f0',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+                  padding: '6px 10px',
+                }}
+                formatter={(v: number, name: string) => [
+                  `${v} tempat (${total > 0 ? Math.round((v / total) * 100) : 0}%)`,
+                  name,
+                ]}
+              />
+            </PieChart>
+          </ResponsiveContainer>
         </div>
-      </div>
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 w-full">
-        {slices.map((s, i) => (
-          <div key={i} className="flex items-center gap-1.5 min-w-0">
-            <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: s.color }} />
-            <span className="text-[11px] text-neutral-600 truncate">{s.label}</span>
-            <span className="text-[11px] font-medium text-neutral-900 ml-auto flex-shrink-0">{s.value}</span>
-          </div>
-        ))}
+
+        {/* Legend kustom */}
+        <div className="flex-1 space-y-1.5 min-w-0">
+          {data.map(d => (
+            <div key={d.name} className="flex items-center gap-2 min-w-0">
+              <span
+                className="w-2 h-2 rounded-full flex-shrink-0"
+                style={{ backgroundColor: d.color }}
+                aria-hidden="true"
+              />
+              <span className="text-[11px] text-neutral-600 flex-1 truncate">{d.name}</span>
+              <span className="text-[11px] font-semibold text-neutral-700 flex-shrink-0">
+                {d.value}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

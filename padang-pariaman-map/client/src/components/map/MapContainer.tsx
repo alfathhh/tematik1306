@@ -1,8 +1,8 @@
-import React from 'react';
-import { MapContainer as LeafletMap, TileLayer, useMapEvents } from 'react-leaflet';
+import React, { useEffect, useRef } from 'react';
+import { MapContainer as LeafletMap, TileLayer, useMapEvents, useMap } from 'react-leaflet';
 import {
   MAP_CENTER, MAP_DEFAULT_ZOOM, MAP_MIN_ZOOM, MAP_MAX_ZOOM,
-  BASEMAP_OSM, BASEMAP_GOOGLE, BASEMAP_OSM_ATTRIBUTION, BASEMAP_GOOGLE_ATTRIBUTION
+  BASEMAP_OSM, BASEMAP_GOOGLE, BASEMAP_OSM_ATTRIBUTION, BASEMAP_GOOGLE_ATTRIBUTION,
 } from '../../constants';
 import { useMapStore } from '../../store/mapStore';
 import { useFilterStore } from '../../store/filterStore';
@@ -16,62 +16,105 @@ interface MapContainerProps {
   kategoriList: KategoriInfra[];
 }
 
-// Komponen inner untuk menangkap event dan menyimpan map instance
+/**
+ * MapEventHandler — simpan map instance ke store + panggil invalidateSize
+ * setiap kali ukuran container berubah (panel filter/statistik toggle).
+ *
+ * Fix Bug #3: Leaflet tidak otomatis mendeteksi perubahan ukuran container
+ * jika parent element berubah width/height via CSS class toggle.
+ * invalidateSize() memaksa Leaflet menghitung ulang dimensinya.
+ */
 function MapEventHandler() {
   const { setMapInstance } = useMapStore();
-  const mapInstance = useMapEvents({
-    load: () => setMapInstance(mapInstance),
-  });
+  const map = useMapEvents({});
 
-  React.useEffect(() => {
-    setMapInstance(mapInstance);
-    return () => setMapInstance(null);
-  }, [mapInstance, setMapInstance]);
+  useEffect(() => {
+    setMapInstance(map);
+
+    // ResizeObserver: panggil invalidateSize setiap kali wrapper berubah ukuran
+    const container = map.getContainer();
+    const observer = new ResizeObserver(() => {
+      map.invalidateSize({ animate: false });
+    });
+    observer.observe(container);
+
+    return () => {
+      observer.disconnect();
+      setMapInstance(null);
+    };
+  }, [map, setMapInstance]);
 
   return null;
 }
 
-// BasemapLayer berdasarkan state
+/** BasemapLayer — TileLayer yang reaktif terhadap state basemap di store. */
 function BasemapLayer() {
   const { basemap } = useMapStore();
+  const map = useMap();
+
+  // Paksa invalidateSize saat basemap berubah (kadang tile baru butuh refresh)
+  useEffect(() => {
+    setTimeout(() => map.invalidateSize({ animate: false }), 100);
+  }, [basemap, map]);
 
   return basemap === 'osm' ? (
-    <TileLayer url={BASEMAP_OSM} attribution={BASEMAP_OSM_ATTRIBUTION} />
+    <TileLayer
+      key="osm"
+      url={BASEMAP_OSM}
+      attribution={BASEMAP_OSM_ATTRIBUTION}
+    />
   ) : (
-    <TileLayer url={BASEMAP_GOOGLE} attribution={BASEMAP_GOOGLE_ATTRIBUTION} maxZoom={20} />
+    <TileLayer
+      key="google"
+      url={BASEMAP_GOOGLE}
+      attribution={BASEMAP_GOOGLE_ATTRIBUTION}
+      maxZoom={20}
+    />
   );
 }
 
-// Komponen utama peta interaktif
+/** MapContainer — komponen utama peta interaktif. */
 export default function MapContainer({ kategoriList }: MapContainerProps) {
   const { kategoriAktif, kdkab, kdkec, kddesa, kdsls } = useFilterStore();
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
   // Fetch infrastruktur sesuai filter aktif
   const { data: infrastruktur } = useInfrastruktur({
     kategori: kategoriAktif,
     kdkab,
-    kdkec: kdkec || undefined,
+    kdkec:  kdkec  || undefined,
     kddesa: kddesa || undefined,
-    kdsls: kdsls || undefined,
+    kdsls:  kdsls  || undefined,
     enabled: kategoriAktif.length > 0,
   });
 
-  // Buat Map dari kategori value → KategoriInfra untuk lookup cepat
+  // Lookup cepat kategoriValue → KategoriInfra
   const kategoriMap = React.useMemo(() => {
     const m = new Map<string, KategoriInfra>();
-    kategoriList.forEach((k) => m.set(k.value, k));
+    kategoriList.forEach(k => m.set(k.value, k));
     return m;
   }, [kategoriList]);
 
   return (
-    <div className="relative w-full h-full">
+    /*
+     * Fix Bug #3 — peta tidak full:
+     * wrapper HARUS punya height eksplisit (100%) agar Leaflet bisa mengukur.
+     * Gunakan style inline sebagai fallback karena Tailwind h-full kadang
+     * tidak cukup jika parent belum selesai di-layout oleh browser.
+     */
+    <div
+      ref={wrapperRef}
+      className="relative w-full h-full"
+      style={{ minHeight: 0 }}  /* penting untuk flex children */
+    >
       <LeafletMap
         center={MAP_CENTER}
         zoom={MAP_DEFAULT_ZOOM}
         minZoom={MAP_MIN_ZOOM}
         maxZoom={MAP_MAX_ZOOM}
-        className="w-full h-full"
         zoomControl={true}
+        /* style eksplisit 100% width+height — lebih reliable dari className saja */
+        style={{ width: '100%', height: '100%' }}
       >
         <MapEventHandler />
         <BasemapLayer />
@@ -82,7 +125,11 @@ export default function MapContainer({ kategoriList }: MapContainerProps) {
         />
       </LeafletMap>
 
-      {/* Tombol toggle basemap */}
+      {/*
+       * BasemapToggle dirender di LUAR <LeafletMap> agar z-index tidak
+       * bertabrakan dengan Leaflet pane. Posisi absolute relatif terhadap
+       * wrapper div ini (position: relative).
+       */}
       <BasemapToggle />
     </div>
   );

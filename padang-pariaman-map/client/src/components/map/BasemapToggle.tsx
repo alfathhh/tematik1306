@@ -1,36 +1,36 @@
 import React from 'react';
 import { useMapStore } from '../../store/mapStore';
-import { cn } from '../../lib/cn';
 
-const BASEMAPS = [
-  { id: 'osm', label: 'OpenStreetMap' },
-  { id: 'satellite', label: 'Satelit' },
-  { id: 'topo', label: 'Topografi' },
-] as const;
-
-type BasemapId = typeof BASEMAPS[number]['id'];
-
+/**
+ * BasemapToggle — tombol melayang kanan-bawah peta untuk ganti basemap.
+ *
+ * Fix Bug #3:
+ * - Sebelumnya mendefinisikan BasemapId = 'osm'|'satellite'|'topo' yang tidak
+ *   ada di mapStore (hanya 'osm'|'google') → setBasemap tidak berfungsi.
+ * - Sebelumnya tidak punya posisi absolute → tenggelam di bawah komponen lain.
+ * - Sekarang: hanya 2 opsi (osm ↔ google), posisi absolute bottom-6 right-3,
+ *   z-[1000] agar di atas tile Leaflet, render di luar LeafletMap container.
+ */
 export default function BasemapToggle() {
-  const { basemap, setBasemap } = useMapStore();
+  const { basemap, toggleBasemap } = useMapStore();
+  const isOsm = basemap === 'osm';
 
   return (
-    <div className="glass rounded-xl overflow-hidden shadow-soft flex">
-      {BASEMAPS.map((bm, idx) => (
-        <button
-          key={bm.id}
-          type="button"
-          onClick={() => setBasemap(bm.id as BasemapId)}
-          className={cn(
-            'px-3 py-1.5 text-[11px] font-medium transition-all',
-            idx !== 0 && 'border-l border-neutral-200/40',
-            basemap === bm.id
-              ? 'bg-white text-neutral-900 shadow-sm'
-              : 'text-neutral-600 hover:text-neutral-900 hover:bg-white/60'
-          )}
-        >
-          {bm.label}
-        </button>
-      ))}
-    </div>
+    <button
+      type="button"
+      onClick={toggleBasemap}
+      aria-label={`Ganti ke ${isOsm ? 'Google Maps' : 'OpenStreetMap'}`}
+      title={`Ganti ke ${isOsm ? 'Google Maps' : 'OpenStreetMap'}`}
+      className="absolute bottom-6 right-3 z-[1000] flex items-center gap-1.5 px-3 py-2 rounded-xl shadow-pop text-xs font-medium text-neutral-700 transition-colors duration-250 focus:outline-none focus-visible:shadow-focus"
+      style={{
+        background: 'rgba(255,255,255,0.92)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        border: '1px solid rgba(226,232,240,0.7)',
+      }}
+    >
+      <span aria-hidden="true">{isOsm ? '🛰️' : '🗺️'}</span>
+      <span className="hidden sm:inline">{isOsm ? 'Satelit' : 'Peta'}</span>
+    </button>
   );
 }

@@ -2,8 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import AdminLayout from './AdminLayout';
 import api from '../../lib/api';
 import { Statistik, StatistikFormData } from '../../types';
-import { ADMIN_PAGE_SIZE, KDKAB_PADANG_PARIAMAN } from '../../constants';
-import { useKecamatan, useNagari, useKorong } from '../../hooks/useWilayah';
+import { ADMIN_PAGE_SIZE, IDKAB_PADANG_PARIAMAN } from '../../constants';
+import { useKecamatanGeoJSON, useNagariGeoJSON, useKorongGeoJSON } from '../../hooks/useWilayahGeoJSON';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
@@ -22,7 +22,7 @@ import { cn } from '../../lib/cn';
  */
 
 const EMPTY_FORM: StatistikFormData = {
-  kdkab: KDKAB_PADANG_PARIAMAN, kdkec: '', kddesa: '', kdsls: '',
+  idkab: IDKAB_PADANG_PARIAMAN, idkec: '', iddesa: '', idsls: '',
   indikator: '', nilai: '', satuan: '', tahun: new Date().getFullYear(),
 };
 
@@ -34,7 +34,7 @@ export default function AdminStatistik() {
   const [page, setPage]           = useState(1);
   const [loading, setLoading]     = useState(true);
   const [filterTahun, setFilterTahun] = useState('');
-  const [filterKdkec, setFilterKdkec] = useState('');
+  const [filterIdkec, setFilterIdkec] = useState('');
   const [showForm, setShowForm]   = useState(false);
   const [showDeleteId, setShowDeleteId] = useState<number | null>(null);
   const [editId, setEditId]       = useState<number | null>(null);
@@ -46,16 +46,16 @@ export default function AdminStatistik() {
   const [tahunList, setTahunList] = useState<number[]>([]);
   const { toast } = useToast();
 
-  const { data: kecamatanList } = useKecamatan(KDKAB_PADANG_PARIAMAN);
-  const { data: nagariList }    = useNagari(form.kdkec);
-  const { data: korongList }    = useKorong(form.kddesa);
+  const kecamatanList = useKecamatanGeoJSON();
+  const nagariList    = useNagariGeoJSON(form.idkec);
+  const korongList    = useKorongGeoJSON(form.iddesa);
 
   const fetchList = useCallback(async () => {
     setLoading(true);
     try {
       const params: Record<string, string | number> = { page, limit: ADMIN_PAGE_SIZE };
       if (filterTahun) params.tahun = filterTahun;
-      if (filterKdkec) params.kdkec = filterKdkec;
+      if (filterIdkec) params.idkec = filterIdkec;
       const res = await api.get('/statistik', { params });
       setList(res.data.data ?? []);
       setTotal(res.data.total ?? 0);
@@ -67,14 +67,14 @@ export default function AdminStatistik() {
       }
     } catch { /* silent */ }
     finally { setLoading(false); }
-  }, [page, filterTahun, filterKdkec]);
+  }, [page, filterTahun, filterIdkec]);
 
   useEffect(() => { fetchList(); }, [fetchList]);
 
   const totalPages = Math.ceil(total / ADMIN_PAGE_SIZE);
   const openAdd    = () => { setForm(EMPTY_FORM); setEditId(null); setFormError(''); setShowForm(true); };
   const openEdit   = (s: Statistik) => {
-    setForm({ kdkab: s.kdkab, kdkec: s.kdkec ?? '', kddesa: s.kddesa ?? '', kdsls: s.kdsls ?? '', indikator: s.indikator, nilai: s.nilai, satuan: s.satuan ?? '', tahun: s.tahun });
+    setForm({ idkab: s.idkab, idkec: s.idkec ?? '', iddesa: s.iddesa ?? '', idsls: s.idsls ?? '', indikator: s.indikator, nilai: s.nilai, satuan: s.satuan ?? '', tahun: s.tahun });
     setEditId(s.id); setFormError(''); setShowForm(true);
   };
 
@@ -145,9 +145,9 @@ export default function AdminStatistik() {
               <option value="">Semua Tahun</option>
               {tahunList.map(t => <option key={t} value={t}>{t}</option>)}
             </Select>
-            <Select value={filterKdkec} onChange={e => { setFilterKdkec(e.target.value); setPage(1); }} containerClassName="w-40">
+            <Select value={filterIdkec} onChange={e => { setFilterIdkec(e.target.value); setPage(1); }} containerClassName="w-40">
               <option value="">Semua Kecamatan</option>
-              {kecamatanList.map(k => <option key={k.kdkec} value={k.kdkec ?? ''}>{k.nama}</option>)}
+              {kecamatanList.map(k => <option key={k.kode} value={k.kode}>{k.nama}</option>)}
             </Select>
             <Button onClick={openAdd} leftIcon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>}>Tambah</Button>
           </div>
@@ -195,7 +195,7 @@ export default function AdminStatistik() {
                       <td className="font-medium text-neutral-900 max-w-[220px]">
                         <span className="truncate block">{item.indikator}</span>
                       </td>
-                      <td className="text-xs font-mono text-neutral-500">{item.kddesa ?? item.kdkec ?? item.kdkab}</td>
+                      <td className="text-xs font-mono text-neutral-500">{item.iddesa ?? item.idkec ?? item.idkab}</td>
                       <td className="text-right font-mono font-semibold text-neutral-900">{item.nilai.toLocaleString('id-ID')}</td>
                       <td className="text-xs text-neutral-500">{item.satuan ?? '—'}</td>
                       <td className="text-center"><Badge variant="primary">{item.tahun}</Badge></td>
@@ -237,17 +237,17 @@ export default function AdminStatistik() {
             <div>
               <p className="text-xs font-medium text-neutral-600 mb-2">Wilayah <span className="text-neutral-400 font-normal">(kosong = level kabupaten)</span></p>
               <div className="grid grid-cols-3 gap-2">
-                <Select value={form.kdkec} onChange={e => setForm(f => ({ ...f, kdkec: e.target.value, kddesa: '', kdsls: '' }))}>
+                <Select value={form.idkec} onChange={e => setForm(f => ({ ...f, idkec: e.target.value, iddesa: '', idsls: '' }))}>
                   <option value="">Kecamatan</option>
-                  {kecamatanList.map(k => <option key={k.kdkec} value={k.kdkec ?? ''}>{k.nama}</option>)}
+                  {kecamatanList.map(k => <option key={k.kode} value={k.kode}>{k.nama}</option>)}
                 </Select>
-                <Select value={form.kddesa} onChange={e => setForm(f => ({ ...f, kddesa: e.target.value, kdsls: '' }))} disabled={!form.kdkec}>
+                <Select value={form.iddesa} onChange={e => setForm(f => ({ ...f, iddesa: e.target.value, idsls: '' }))} disabled={!form.idkec}>
                   <option value="">Nagari</option>
-                  {nagariList.map(n => <option key={n.kddesa} value={n.kddesa ?? ''}>{n.nama}</option>)}
+                  {nagariList.map(n => <option key={n.kode} value={n.kode}>{n.nama}</option>)}
                 </Select>
-                <Select value={form.kdsls} onChange={e => setForm(f => ({ ...f, kdsls: e.target.value }))} disabled={!form.kddesa}>
+                <Select value={form.idsls} onChange={e => setForm(f => ({ ...f, idsls: e.target.value }))} disabled={!form.iddesa}>
                   <option value="">Korong</option>
-                  {korongList.map(k => <option key={k.kdsls} value={k.kdsls ?? ''}>{k.nama}</option>)}
+                  {korongList.map(k => <option key={k.kode} value={k.kode}>{k.nama}</option>)}
                 </Select>
               </div>
             </div>

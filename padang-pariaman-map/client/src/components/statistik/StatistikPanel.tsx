@@ -13,44 +13,30 @@ interface StatistikPanelProps {
   kategoriList: KategoriInfra[];
 }
 
-/**
- * StatistikPanel — panel statistik wilayah.
- * State: useFilterStore untuk filter wilayah aktif.
- * Data: useStatistik hook + useInfrastruktur hook.
- *
- * Fix: sebelumnya mengimport useStatistikStore dari 'store/statistikStore'
- * yang tidak ada. Sekarang menggunakan hooks yang sudah tersedia.
- */
 export default function StatistikPanel({ kategoriList }: StatistikPanelProps) {
-  const { kdkab, kdkec, kddesa } = useFilterStore();
+  const { idkab, idkec, iddesa } = useFilterStore();
 
   const { data: statistikData, loading: loadingStat } = useStatistik({
-    kdkab,
-    kdkec:  kdkec  || undefined,
-    kddesa: kddesa || undefined,
+    idkab,
+    idkec:  idkec  || undefined,
+    iddesa: iddesa || undefined,
   });
 
   const { data: allInfra } = useInfrastruktur({
-    kdkab,
-    kdkec:    kdkec    || undefined,
-    kddesa:   kddesa   || undefined,
+    idkab,
+    idkec:    idkec    || undefined,
+    iddesa:   iddesa   || undefined,
     kategori: kategoriList.map(k => k.value),
     enabled:  kategoriList.length > 0,
   });
 
-  // Deduplicate indikator: ambil record pertama per indikator
   const indikatorMap = new Map<string, { nilai: number; satuan?: string; tahun: number }>();
   for (const s of statistikData) {
     if (!indikatorMap.has(s.indikator)) {
-      indikatorMap.set(s.indikator, {
-        nilai:  s.nilai,
-        satuan: s.satuan ?? undefined,
-        tahun:  s.tahun,
-      });
+      indikatorMap.set(s.indikator, { nilai: s.nilai, satuan: s.satuan ?? undefined, tahun: s.tahun });
     }
   }
 
-  // Data untuk BarChart (maks 4 indikator)
   const barData = Array.from(indikatorMap.entries())
     .slice(0, 4)
     .map(([indikator, v]) => ({
@@ -59,8 +45,6 @@ export default function StatistikPanel({ kategoriList }: StatistikPanelProps) {
       satuan: v.satuan,
     }));
 
-  // Data untuk DonutChart: distribusi per kategori
-  // Gunakan kat.color (bukan kat.warna) — field di KategoriInfra adalah 'color'
   const donutData = kategoriList
     .map(kat => ({
       name:  kat.label,
@@ -69,23 +53,19 @@ export default function StatistikPanel({ kategoriList }: StatistikPanelProps) {
     }))
     .filter(d => d.value > 0);
 
-  // Label wilayah aktif untuk heading panel
-  const wilayahLabel = kddesa
-    ? `Nagari ${kddesa}`
-    : kdkec
-      ? `Kecamatan ${kdkec}`
+  const wilayahLabel = iddesa
+    ? `Nagari ${iddesa}`
+    : idkec
+      ? `Kecamatan ${idkec}`
       : NAMA_KABUPATEN;
 
   const totalInfra = allInfra.length;
 
   return (
     <div className="h-full overflow-y-auto panel-scroll px-3 py-4 space-y-4">
-      {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h2 className="font-display font-semibold text-sm text-neutral-900">
-            Statistik Wilayah
-          </h2>
+          <h2 className="font-display font-semibold text-sm text-neutral-900">Statistik Wilayah</h2>
           <p className="text-[11px] text-neutral-500 mt-0.5">{wilayahLabel}</p>
         </div>
         {totalInfra > 0 && (
@@ -95,56 +75,35 @@ export default function StatistikPanel({ kategoriList }: StatistikPanelProps) {
         )}
       </div>
 
-      {/* Loading state */}
       {loadingStat ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map(i => <Skeleton.Card key={i} />)}
-        </div>
-
-      /* Empty state */
+        <div className="space-y-3">{[1, 2, 3].map(i => <Skeleton.Card key={i} />)}</div>
       ) : statistikData.length === 0 && donutData.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-10 text-center gap-2">
           <span className="text-4xl" aria-hidden="true">📊</span>
           <p className="text-sm font-medium text-neutral-600">Belum ada data statistik</p>
           <p className="text-xs text-neutral-400">untuk wilayah yang dipilih</p>
         </div>
-
       ) : (
         <>
-          {/* Cards ringkasan indikator */}
           {indikatorMap.size > 0 && (
             <div className="space-y-2">
               {Array.from(indikatorMap.entries()).slice(0, 4).map(([ind, v]) => (
-                <StatistikCard
-                  key={ind}
-                  indikator={ind}
-                  nilai={v.nilai}
-                  satuan={v.satuan}
-                  tahun={v.tahun}
-                />
+                <StatistikCard key={ind} indikator={ind} nilai={v.nilai} satuan={v.satuan} tahun={v.tahun} />
               ))}
             </div>
           )}
-
-          {/* Bar chart perbandingan indikator */}
           {barData.length > 1 && (
             <div className="bg-white rounded-xl border border-neutral-200/60 shadow-soft p-4">
               <BarChart data={barData} title="Perbandingan Indikator" />
             </div>
           )}
-
-          {/* Donut chart distribusi infrastruktur */}
           {donutData.length > 0 && (
             <div className="bg-white rounded-xl border border-neutral-200/60 shadow-soft p-4">
               <DonutChart data={donutData} title="Distribusi Infrastruktur" />
             </div>
           )}
-
-          {/* Jika ada infra tapi statistik kosong */}
           {statistikData.length === 0 && donutData.length > 0 && (
-            <p className="text-xs text-neutral-400 text-center py-2">
-              Tidak ada data statistik untuk wilayah ini
-            </p>
+            <p className="text-xs text-neutral-400 text-center py-2">Tidak ada data statistik untuk wilayah ini</p>
           )}
         </>
       )}

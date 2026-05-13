@@ -3,14 +3,13 @@ import api from '../lib/api';
 import { Statistik } from '../types';
 
 interface UseStatistikOptions {
-  kdkab?: string;
-  kdkec?: string;
-  kddesa?: string;
+  idkab?: string;
+  idkec?: string;
+  iddesa?: string;
 }
 
-// Hook untuk fetch data statistik sesuai filter wilayah aktif
 export function useStatistik(options: UseStatistikOptions = {}) {
-  const { kdkab, kdkec, kddesa } = options;
+  const { idkab, idkec, iddesa } = options;
 
   const [data, setData]       = useState<Statistik[]>([]);
   const [loading, setLoading] = useState(false);
@@ -21,9 +20,9 @@ export function useStatistik(options: UseStatistikOptions = {}) {
     setError(null);
 
     const params: Record<string, string> = {};
-    if (kdkab)  params.kdkab  = kdkab;
-    if (kdkec)  params.kdkec  = kdkec;
-    if (kddesa) params.kddesa = kddesa;
+    if (idkab)  params.idkab  = idkab;
+    if (idkec)  params.idkec  = idkec;
+    if (iddesa) params.iddesa = iddesa;
 
     api.get('/statistik', { params })
       .then(res => setData(res.data.data || res.data))
@@ -32,7 +31,7 @@ export function useStatistik(options: UseStatistikOptions = {}) {
         console.error('useStatistik error:', err);
       })
       .finally(() => setLoading(false));
-  }, [kdkab, kdkec, kddesa]);
+  }, [idkab, idkec, iddesa]);
 
   return { data, loading, error };
 }

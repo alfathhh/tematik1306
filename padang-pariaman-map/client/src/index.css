@@ -39,3 +39,19 @@
 .admin-table tbody tr:hover { @apply bg-neutral-50/70; }
 .admin-table tbody td { @apply px-4 py-3 text-neutral-700; }
 .admin-table tbody tr:last-child { @apply border-b-0; }
+
+/* ── Tooltip wilayah (hover pada shape GeoJSON) ── */
+.wilayah-tooltip {
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(4px);
+  border: none;
+  border-radius: 8px;
+  color: #f8fafc;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 10px;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  pointer-events: none;
+}
+.wilayah-tooltip::before { display: none; }

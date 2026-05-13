@@ -17,20 +17,20 @@ export interface Infrastruktur {
   fotoUrl?: string;
   lat: number;
   lng: number;
-  kdkab: string;
-  kdkec: string;
-  kddesa: string;
-  kdsls?: string;
+  idkab: string;
+  idkec: string;
+  iddesa: string;
+  idsls?: string;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface Statistik {
   id: number;
-  kdkab: string;
-  kdkec?: string;
-  kddesa?: string;
-  kdsls?: string;
+  idkab: string;
+  idkec?: string;
+  iddesa?: string;
+  idsls?: string;
   indikator: string;
   nilai: number;
   satuan?: string;
@@ -39,20 +39,17 @@ export interface Statistik {
 }
 
 export interface WilayahOption {
-  // Kecamatan
-  kdkec?: string;
-  // Nagari
-  kddesa?: string;
-  // Korong
-  kdsls?: string;
+  idkec?: string;
+  iddesa?: string;
+  idsls?: string;
   nama: string;
 }
 
 export interface FilterWilayahState {
-  kdkab: string;
-  kdkec?: string;
-  kddesa?: string;
-  kdsls?: string;
+  idkab: string;
+  idkec?: string;
+  iddesa?: string;
+  idsls?: string;
 }
 
 export interface ImportResult {
@@ -88,17 +85,17 @@ export interface InfrastrukturFormData {
   fotoUrl: string;
   lat: number | '';
   lng: number | '';
-  kdkab: string;
-  kdkec: string;
-  kddesa: string;
-  kdsls: string;
+  idkab: string;
+  idkec: string;
+  iddesa: string;
+  idsls: string;
 }
 
 export interface StatistikFormData {
-  kdkab: string;
-  kdkec: string;
-  kddesa: string;
-  kdsls: string;
+  idkab: string;
+  idkec: string;
+  iddesa: string;
+  idsls: string;
   indikator: string;
   nilai: number | '';
   satuan: string;

@@ -56,7 +56,7 @@ export default function Login() {
               <label htmlFor="password" className="text-xs font-medium text-neutral-700">Password</label>
               <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" required />
             </div>
-            <Button type="submit" loading={loading} className="w-full">Masuk</Button>
+            <Button type="submit" isLoading={loading} className="w-full">Masuk</Button>
           </form>
         </div>
         <p className="text-center text-xs text-neutral-400 mt-6">© 2025 Dinas PUPR Kabupaten Padang Pariaman</p>

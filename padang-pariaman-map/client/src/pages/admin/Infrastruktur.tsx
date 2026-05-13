@@ -2,10 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import AdminLayout from './AdminLayout';
 import api from '../../lib/api';
 import { Infrastruktur, KategoriInfra, InfrastrukturFormData } from '../../types';
-import { ADMIN_PAGE_SIZE, KDKAB_PADANG_PARIAMAN } from '../../constants';
+import { ADMIN_PAGE_SIZE, IDKAB_PADANG_PARIAMAN } from '../../constants';
 import { MapContainer as LeafletMap, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { useKecamatan, useNagari, useKorong } from '../../hooks/useWilayah';
+import { useKecamatanGeoJSON, useNagariGeoJSON, useKorongGeoJSON } from '../../hooks/useWilayahGeoJSON';
 import { FotoUpload } from '../../components/admin/FotoUpload';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -34,8 +34,8 @@ L.Icon.Default.mergeOptions({
 
 const EMPTY_FORM: InfrastrukturFormData = {
   nama: '', kategori: '', alamat: '', fotoUrl: '',
-  lat: '', lng: '', kdkab: KDKAB_PADANG_PARIAMAN,
-  kdkec: '', kddesa: '', kdsls: '',
+  lat: '', lng: '', idkab: IDKAB_PADANG_PARIAMAN,
+  idkec: '', iddesa: '', idsls: '',
 };
 
 /** MapPicker — mini-map untuk pilih koordinat dengan klik. */
@@ -76,9 +76,9 @@ export default function AdminInfrastruktur() {
   const [importResult, setImportResult] = useState<{ berhasil: number; gagal: number; errors: { baris: number; pesan: string }[] } | null>(null);
   const { toast } = useToast();
 
-  const { data: kecamatanList } = useKecamatan(KDKAB_PADANG_PARIAMAN);
-  const { data: nagariList }    = useNagari(form.kdkec);
-  const { data: korongList }    = useKorong(form.kddesa);
+  const kecamatanList = useKecamatanGeoJSON();
+  const nagariList    = useNagariGeoJSON(form.idkec);
+  const korongList    = useKorongGeoJSON(form.iddesa);
 
   // Fetch kategori dari API (bukan dari store fiktif)
   useEffect(() => {
@@ -103,13 +103,13 @@ export default function AdminInfrastruktur() {
   const totalPages = Math.ceil(total / ADMIN_PAGE_SIZE);
   const openAdd    = () => { setForm(EMPTY_FORM); setEditId(null); setFormError(''); setShowForm(true); };
   const openEdit   = (i: Infrastruktur) => {
-    setForm({ nama: i.nama, kategori: i.kategori, alamat: i.alamat ?? '', fotoUrl: i.fotoUrl ?? '', lat: i.lat, lng: i.lng, kdkab: i.kdkab, kdkec: i.kdkec, kddesa: i.kddesa, kdsls: i.kdsls ?? '' });
+    setForm({ nama: i.nama, kategori: i.kategori, alamat: i.alamat ?? '', fotoUrl: i.fotoUrl ?? '', lat: i.lat, lng: i.lng, idkab: i.idkab, idkec: i.idkec, iddesa: i.iddesa, idsls: i.idsls ?? '' });
     setEditId(i.id); setFormError(''); setShowForm(true);
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.nama || !form.kategori || form.lat === '' || form.lng === '' || !form.kdkec || !form.kddesa) {
+    if (!form.nama || !form.kategori || form.lat === '' || form.lng === '' || !form.idkec || !form.iddesa) {
       setFormError('Nama, kategori, koordinat, kecamatan, dan nagari wajib diisi'); return;
     }
     setSaving(true); setFormError('');
@@ -229,7 +229,7 @@ export default function AdminInfrastruktur() {
                           {k ? <Badge color={k.color} icon={<span>{k.icon}</span>}>{k.label}</Badge>
                             : <span className="text-neutral-400 text-xs">{item.kategori}</span>}
                         </td>
-                        <td className="text-neutral-500 text-xs font-mono">{item.kdkec}</td>
+                        <td className="text-neutral-500 text-xs font-mono">{item.idkec}</td>
                         <td className="text-neutral-400 text-xs font-mono">{item.lat.toFixed(4)}, {item.lng.toFixed(4)}</td>
                         <td>
                           <div className="flex justify-center items-center gap-1">
@@ -280,17 +280,17 @@ export default function AdminInfrastruktur() {
               </div>
             </div>
             <div className="grid grid-cols-3 gap-3">
-              <Select label="Kecamatan *" value={form.kdkec} onChange={e => setForm(f => ({ ...f, kdkec: e.target.value, kddesa: '', kdsls: '' }))}>
+              <Select label="Kecamatan *" value={form.idkec} onChange={e => setForm(f => ({ ...f, idkec: e.target.value, iddesa: '', idsls: '' }))}>
                 <option value="">-- Pilih --</option>
-                {kecamatanList.map(k => <option key={k.kdkec} value={k.kdkec ?? ''}>{k.nama}</option>)}
+                {kecamatanList.map(k => <option key={k.kode} value={k.kode}>{k.nama}</option>)}
               </Select>
-              <Select label="Nagari *" value={form.kddesa} onChange={e => setForm(f => ({ ...f, kddesa: e.target.value, kdsls: '' }))} disabled={!form.kdkec}>
+              <Select label="Nagari *" value={form.iddesa} onChange={e => setForm(f => ({ ...f, iddesa: e.target.value, idsls: '' }))} disabled={!form.idkec}>
                 <option value="">-- Pilih --</option>
-                {nagariList.map(n => <option key={n.kddesa} value={n.kddesa ?? ''}>{n.nama}</option>)}
+                {nagariList.map(n => <option key={n.kode} value={n.kode}>{n.nama}</option>)}
               </Select>
-              <Select label="Korong" value={form.kdsls} onChange={e => setForm(f => ({ ...f, kdsls: e.target.value }))} disabled={!form.kddesa}>
+              <Select label="Korong" value={form.idsls} onChange={e => setForm(f => ({ ...f, idsls: e.target.value }))} disabled={!form.iddesa}>
                 <option value="">-- Pilih --</option>
-                {korongList.map(k => <option key={k.kdsls} value={k.kdsls ?? ''}>{k.nama}</option>)}
+                {korongList.map(k => <option key={k.kode} value={k.kode}>{k.nama}</option>)}
               </Select>
             </div>
             {formError && <div role="alert" className="text-xs text-danger-600 bg-danger-50 border border-danger-500/20 rounded-xl px-3 py-2">{formError}</div>}

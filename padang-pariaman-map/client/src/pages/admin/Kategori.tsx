@@ -96,7 +96,7 @@ export default function KategoriPage() {
         )}
       </div>
 
-      <Modal open={open} onClose={() => setOpen(false)} title={editing ? 'Edit Kategori' : 'Tambah Kategori'}>
+      <Modal isOpen={open} onClose={() => setOpen(false)} title={editing ? 'Edit Kategori' : 'Tambah Kategori'}>
         <form onSubmit={handleSave} className="space-y-4">
           <div className="space-y-1"><label className="text-xs font-medium text-neutral-700">Label</label><Input value={form.label} onChange={e => setForm(f => ({...f, label: e.target.value}))} placeholder="Contoh: Jalan Raya" required /></div>
           <div className="space-y-1"><label className="text-xs font-medium text-neutral-700">Value (slug)</label><Input value={form.value} onChange={e => setForm(f => ({...f, value: e.target.value.toLowerCase().replace(/\s+/g, '-')}))} placeholder="contoh: jalan-raya" required /></div>
@@ -111,7 +111,7 @@ export default function KategoriPage() {
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Batal</Button>
-            <Button type="submit" loading={saving}>{editing ? 'Simpan' : 'Tambah'}</Button>
+            <Button type="submit" isLoading={saving}>{editing ? 'Simpan' : 'Tambah'}</Button>
           </div>
         </form>
       </Modal>

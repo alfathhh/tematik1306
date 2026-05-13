@@ -1,59 +1,99 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useMemo, useCallback } from 'react';
 import { GeoJSON, useMap } from 'react-leaflet';
+import L from 'leaflet';
 import { useFilterStore } from '../../store/filterStore';
-import { getBoundsFromGeoJSON, filterGeoJSONByKode } from '../../lib/mapUtils';
+import { getBoundsFromGeoJSON } from '../../lib/mapUtils';
+import {
+  kecamatanGeoJSON,
+  nagariGeoJSON,
+  korongGeoJSON,
+} from '../../assets/geojson';
 
-// Layer polygon batas wilayah dari file GeoJSON statis
+function filterByProp(
+  fc: GeoJSON.FeatureCollection,
+  prop: string,
+  value: string,
+): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: fc.features.filter(
+      (f) => f.properties && String(f.properties[prop]) === value,
+    ),
+  };
+}
+
+const STYLE_KECAMATAN = { color: '#10B981', weight: 1.5, fillOpacity: 0.06 };
+const STYLE_NAGARI    = { color: '#F59E0B', weight: 1.5, fillOpacity: 0.08 };
+const STYLE_KORONG    = { color: '#EF4444', weight: 1,   fillOpacity: 0.10 };
+const STYLE_HOVER     = { weight: 3, fillOpacity: 0.22 };
+
 export default function WilayahLayer() {
   const map = useMap();
-  const { kdkec, kddesa, kdsls } = useFilterStore();
-  const [geojsonData, setGeojsonData] = useState<GeoJSON.FeatureCollection | null>(null);
+  const { idkec, iddesa, idsls, setIdkec, setIddesa, setIdsls } = useFilterStore();
 
-  // Load GeoJSON kecamatan dari public/geojson/
-  useEffect(() => {
-    fetch('/geojson/kecamatan.geojson')
-      .then(res => res.ok ? res.json() : null)
-      .catch(() => null)
-      .then(data => setGeojsonData(data));
-  }, []);
-
-  // fitBounds ke wilayah yang dipilih
-  useEffect(() => {
-    if (!geojsonData) return;
-
-    let targetGeoJSON: GeoJSON.FeatureCollection = geojsonData;
-
-    if (kdsls) {
-      // Coba filter by korong (dari kecamatan.geojson belum ada, skip)
-    } else if (kddesa) {
-      // Filter by nagari
-      const filtered = filterGeoJSONByKode(geojsonData, 'kddesa', kddesa);
-      if (filtered.features.length > 0) targetGeoJSON = filtered;
-    } else if (kdkec) {
-      // Filter by kecamatan
-      const filtered = filterGeoJSONByKode(geojsonData, 'kdkec', kdkec);
-      if (filtered.features.length > 0) targetGeoJSON = filtered;
+  const { displayData, baseStyle, level } = useMemo(() => {
+    if (iddesa) {
+      // Tampilkan korong dalam nagari yang dipilih
+      const filtered = filterByProp(korongGeoJSON, 'iddesa', iddesa);
+      return { displayData: filtered, baseStyle: STYLE_KORONG, level: 'korong' as const };
     }
-
-    const bounds = getBoundsFromGeoJSON(targetGeoJSON);
-    if (bounds) {
-      map.fitBounds(bounds, { padding: [30, 30] });
+    if (idkec) {
+      // Tampilkan nagari dalam kecamatan yang dipilih
+      const filtered = filterByProp(nagariGeoJSON, 'idkec', idkec);
+      return { displayData: filtered, baseStyle: STYLE_NAGARI, level: 'nagari' as const };
     }
-  }, [kdkec, kddesa, kdsls, geojsonData, map]);
+    // Default — tampilkan semua kecamatan
+    return { displayData: kecamatanGeoJSON, baseStyle: STYLE_KECAMATAN, level: 'kecamatan' as const };
+  }, [idkec, iddesa, idsls]);
 
-  if (!geojsonData) return null;
+  useEffect(() => {
+    const bounds = getBoundsFromGeoJSON(displayData);
+    if (bounds) map.fitBounds(bounds, { padding: [30, 30] });
+  }, [displayData, map]);
+
+  const onEachFeature = useCallback(
+    (feature: GeoJSON.Feature, layer: L.Layer) => {
+      const props = feature.properties ?? {};
+
+      let namaWilayah = '';
+      if (level === 'kecamatan') namaWilayah = props.nmkec  ?? props.idkec  ?? '';
+      else if (level === 'nagari')    namaWilayah = props.nmdesa ?? props.iddesa ?? '';
+      else if (level === 'korong')    namaWilayah = props.nmsls  ?? props.idsls  ?? '';
+
+      layer.bindTooltip(namaWilayah, {
+        sticky: true,
+        className: 'wilayah-tooltip',
+        direction: 'top',
+        offset: [0, -4],
+      });
+
+      layer.on({
+        mouseover(e) {
+          const l = e.target as L.Path;
+          l.setStyle({ ...baseStyle, ...STYLE_HOVER });
+          l.bringToFront();
+        },
+        mouseout(e) {
+          (e.target as L.Path).setStyle(baseStyle);
+        },
+        click() {
+          if (level === 'kecamatan' && props.idkec)  setIdkec(String(props.idkec));
+          else if (level === 'nagari' && props.iddesa) setIddesa(String(props.iddesa));
+          else if (level === 'korong' && props.idsls)  setIdsls(String(props.idsls));
+        },
+      });
+    },
+    [level, baseStyle, setIdkec, setIddesa, setIdsls],
+  );
+
+  if (!displayData.features.length) return null;
 
   return (
     <GeoJSON
-      key={JSON.stringify(geojsonData)}
-      data={geojsonData}
-      style={() => ({
-        color: '#3B82F6',
-        weight: 1.5,
-        opacity: 0.7,
-        fillColor: '#3B82F6',
-        fillOpacity: 0.05,
-      })}
+      key={`${level}-${idkec}-${iddesa}-${idsls}`}
+      data={displayData}
+      style={() => baseStyle}
+      onEachFeature={onEachFeature}
     />
   );
 }

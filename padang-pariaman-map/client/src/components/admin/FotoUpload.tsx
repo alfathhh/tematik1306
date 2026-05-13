@@ -2,37 +2,36 @@ import React, { useRef, useState } from 'react';
 import api from '../../lib/api';
 import { cn } from '../../lib/cn';
 
-interface Props {
-  value: string[];
-  onChange: (urls: string[]) => void;
-  max?: number;
+interface FotoUploadProps {
+  value: string;       // current fotoUrl (single photo)
+  onChange: (url: string) => void;
 }
 
-export function FotoUpload({ value, onChange }: { value: string; onChange: (url: string) => void }) {
-  const inputRef                        = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading]       = useState(false);
-  const [error, setError]               = useState('');
-  const [dragging, setDragging]         = useState(false);
-  const [showManual, setShowManual]     = useState(false);
+export function FotoUpload({ value, onChange }: FotoUploadProps) {
+  const inputRef                    = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading]   = useState(false);
+  const [error, setError]           = useState('');
+  const [showManual, setShowManual] = useState(false);
+  const [manualUrl, setManualUrl]   = useState('');
 
   async function handleFiles(files: FileList | null) {
     if (!files || !files.length) return;
     setError('');
-    const toUpload = Array.from(files).slice(0, max - value.length);
-    if (!toUpload.length) return;
+    const file = files[0];
     setUploading(true);
     try {
-      const urls: string[] = [];
-      for (const file of toUpload) {
-        const fd = new FormData();
-        fd.append('foto', file);
-        const res = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-        urls.push(res.data.url);
-      }
-      onChange([...value, ...urls]);
-    } catch (err: any) {
-      setError(err?.response?.data?.message || 'Upload gagal.');
-    } finally { setUploading(false); }
+      const fd = new FormData();
+      fd.append('foto', file);
+      const res = await api.post('/upload/foto', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      onChange(res.data.fotoUrl);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setError(msg || 'Upload gagal.');
+    } finally {
+      setUploading(false);
+    }
   }
 
   function handleDrop(e: React.DragEvent) {
@@ -40,51 +39,121 @@ export function FotoUpload({ value, onChange }: { value: string; onChange: (url:
     handleFiles(e.dataTransfer.files);
   }
 
-  function removePhoto(idx: number) {
-    onChange(value.filter((_, i) => i !== idx));
+  function handleManualSave() {
+    if (manualUrl.trim()) {
+      onChange(manualUrl.trim());
+      setShowManual(false);
+      setManualUrl('');
+    }
   }
 
   return (
     <div className="space-y-2">
-      {value.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {value.map((url, i) => (
-            <div key={url} className="relative w-16 h-16 group">
-              <img src={url} alt={"Foto " + (i + 1)} className="w-full h-full object-cover rounded-xl border border-neutral-200" />
-              <button type="button" onClick={() => removePhoto(i)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white items-center justify-center hidden group-hover:flex shadow">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="white" strokeWidth="2.5" strokeLinecap="round"/></svg>
-              </button>
-            </div>
-          ))}
+      {/* Preview */}
+      {value && (
+        <div className="relative w-full h-40 group rounded-xl overflow-hidden border border-neutral-200">
+          <img src={value} alt="Foto infrastruktur" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              className="px-3 py-1.5 rounded-lg bg-white text-xs font-medium text-neutral-700 hover:bg-neutral-100"
+            >
+              🔄 Ganti
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange('')}
+              className="px-3 py-1.5 rounded-lg bg-red-500 text-xs font-medium text-white hover:bg-red-600"
+            >
+              🗑️ Hapus
+            </button>
+          </div>
         </div>
       )}
-      {value.length < max && (
+
+      {/* Drop zone — only show when no photo */}
+      {!value && (
         <div
-          onDragOver={e => e.preventDefault()}
+          onDragOver={(e) => e.preventDefault()}
           onDrop={handleDrop}
           onClick={() => inputRef.current?.click()}
           className={cn(
-            'border-2 border-dashed border-neutral-200 rounded-xl p-4 text-center cursor-pointer transition-colors',
-            'hover:border-brand-300 hover:bg-brand-50/30',
-            uploading && 'opacity-60 pointer-events-none'
+            'border-2 border-dashed border-neutral-200 rounded-xl p-6 text-center cursor-pointer transition-colors',
+            'hover:border-primary-300 hover:bg-primary-50/30',
+            uploading && 'opacity-60 pointer-events-none',
           )}
         >
           {uploading ? (
             <div className="flex flex-col items-center gap-2">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="animate-spin text-brand-500"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.2"/><path d="M12 2a10 10 0 010 20" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="animate-spin text-primary-500">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.2" />
+                <path d="M12 2a10 10 0 010 20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
               <span className="text-xs text-neutral-500">Mengunggah...</span>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-1.5">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-neutral-400"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-neutral-400">
+                <path
+                  d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
               <span className="text-xs text-neutral-500">Klik atau seret foto ke sini</span>
-              <span className="text-[10px] text-neutral-400">PNG, JPG, WEBP · maks {max} foto</span>
+              <span className="text-[10px] text-neutral-400">JPG, PNG, WebP · maks 5MB</span>
             </div>
           )}
         </div>
       )}
+
       {error && <p className="text-xs text-red-600">{error}</p>}
-      <input ref={inputRef} type="file" accept="image/*" multiple className="hidden" onChange={e => handleFiles(e.target.files)} />
+
+      {/* Manual URL input */}
+      {!showManual ? (
+        <button
+          type="button"
+          onClick={() => setShowManual(true)}
+          className="text-xs text-primary-600 hover:underline"
+        >
+          Atau isi URL manual
+        </button>
+      ) : (
+        <div className="flex gap-2">
+          <input
+            type="url"
+            value={manualUrl}
+            onChange={(e) => setManualUrl(e.target.value)}
+            placeholder="https://..."
+            className="flex-1 text-xs px-3 py-2 rounded-lg border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-primary-400/40"
+          />
+          <button
+            type="button"
+            onClick={handleManualSave}
+            className="px-3 py-2 rounded-lg bg-primary-500 text-white text-xs font-medium hover:bg-primary-600"
+          >
+            Simpan
+          </button>
+          <button
+            type="button"
+            onClick={() => { setShowManual(false); setManualUrl(''); }}
+            className="px-3 py-2 rounded-lg border border-neutral-200 text-xs text-neutral-600 hover:bg-neutral-50"
+          >
+            Batal
+          </button>
+        </div>
+      )}
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={(e) => handleFiles(e.target.files)}
+      />
     </div>
   );
 }

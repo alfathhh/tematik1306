@@ -1,7 +1,8 @@
 // Konstanta aplikasi frontend Peta Tematik Padang Pariaman
 
 // ===== WILAYAH =====
-export const KDKAB_PADANG_PARIAMAN = '1305';
+// Kode BPS resmi Kabupaten Padang Pariaman = 1306
+export const IDKAB_PADANG_PARIAMAN = '1306';
 export const NAMA_KABUPATEN = 'Kab. Padang Pariaman';
 
 // ===== PETA =====
@@ -9,7 +10,7 @@ export const MAP_CENTER: [number, number] = [-0.5397, 100.1187];
 export const MAP_DEFAULT_ZOOM = 11;
 export const MAP_MIN_ZOOM = 9;
 export const MAP_MAX_ZOOM = 18;
-export const MAP_CLUSTER_THRESHOLD = 100; // marker > nilai ini → aktifkan clustering
+export const MAP_CLUSTER_THRESHOLD = 100;
 
 // ===== ADMIN =====
 export const ADMIN_TOKEN_KEY = 'admin_token';

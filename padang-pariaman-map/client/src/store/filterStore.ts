@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { KDKAB_PADANG_PARIAMAN } from '../constants';
+import { IDKAB_PADANG_PARIAMAN } from '../constants';
 
 interface FilterState {
   // Filter kategori infrastruktur (array of kategori.value)
@@ -8,19 +8,18 @@ interface FilterState {
   setKategoriAktif: (values: string[]) => void;
   resetKategori: () => void;
 
-  // Filter wilayah cascade
-  kdkab: string;
-  kdkec: string;
-  kddesa: string;
-  kdsls: string;
-  setKdkec: (v: string) => void;
-  setKddesa: (v: string) => void;
-  setKdsls: (v: string) => void;
+  // Filter wilayah cascade — menyimpan kode BPS penuh (idkec 7 digit, iddesa 10 digit, idsls 14 digit)
+  idkab: string;
+  idkec: string;
+  iddesa: string;
+  idsls: string;
+  setIdkec: (v: string) => void;
+  setIddesa: (v: string) => void;
+  setIdsls: (v: string) => void;
   resetWilayah: () => void;
 }
 
 export const useFilterStore = create<FilterState>((set) => ({
-  // Kategori: default semua mati (tidak ada marker tampil)
   kategoriAktif: [],
 
   toggleKategori: (value) =>
@@ -31,22 +30,17 @@ export const useFilterStore = create<FilterState>((set) => ({
     })),
 
   setKategoriAktif: (values) => set({ kategoriAktif: values }),
-
   resetKategori: () => set({ kategoriAktif: [] }),
 
   // Wilayah: default seluruh kabupaten
-  kdkab: KDKAB_PADANG_PARIAMAN,
-  kdkec: '',
-  kddesa: '',
-  kdsls: '',
+  idkab: IDKAB_PADANG_PARIAMAN,
+  idkec: '',
+  iddesa: '',
+  idsls: '',
 
-  setKdkec: (v) => set({ kdkec: v, kddesa: '', kdsls: '' }),
-  setKddesa: (v) => set({ kddesa: v, kdsls: '' }),
-  setKdsls: (v) => set({ kdsls: v }),
+  setIdkec:  (v) => set({ idkec: v, iddesa: '', idsls: '' }),
+  setIddesa: (v) => set({ iddesa: v, idsls: '' }),
+  setIdsls:  (v) => set({ idsls: v }),
 
-  resetWilayah: () => set({
-    kdkec: '',
-    kddesa: '',
-    kdsls: '',
-  }),
+  resetWilayah: () => set({ idkec: '', iddesa: '', idsls: '' }),
 }));

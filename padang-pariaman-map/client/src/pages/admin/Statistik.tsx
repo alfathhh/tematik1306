@@ -1,43 +1,265 @@
-import React, { useEffect } from 'react';
-import { BarChart } from '../../components/statistik/BarChart';
-import { DonutChart } from '../../components/statistik/DonutChart';
-import { useStatistikStore } from '../../store/statistikStore';
+import React, { useState, useEffect, useCallback } from 'react';
+import AdminLayout from './AdminLayout';
+import api from '../../lib/api';
+import { Statistik, StatistikFormData } from '../../types';
+import { ADMIN_PAGE_SIZE, KDKAB_PADANG_PARIAMAN } from '../../constants';
+import { useKecamatan, useNagari, useKorong } from '../../hooks/useWilayah';
+import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
+import { Select } from '../../components/ui/Select';
+import { Modal } from '../../components/ui/Modal';
+import { Skeleton } from '../../components/ui/Skeleton';
+import { Badge } from '../../components/ui/Badge';
+import { useToast } from '../../components/ui/Toast';
+import { cn } from '../../lib/cn';
 
-export default function StatistikPage() {
-  const { data, loading, fetchStatistik } = useStatistikStore();
+/**
+ * AdminStatistik — halaman CRUD data statistik.
+ *
+ * Fix: versi lama mengimport { BarChart } dan { DonutChart } sebagai named export
+ * (tidak ada, sudah diubah ke default export) dan menggunakan statistikStore
+ * yang tidak ada. Sekarang menggunakan CRUD pattern yang sama dengan Infrastruktur.tsx.
+ */
 
-  useEffect(() => {
-    document.title = 'Statistik — Admin Peta Tematik';
-    fetchStatistik();
-  }, []);
+const EMPTY_FORM: StatistikFormData = {
+  kdkab: KDKAB_PADANG_PARIAMAN, kdkec: '', kddesa: '', kdsls: '',
+  indikator: '', nilai: '', satuan: '', tahun: new Date().getFullYear(),
+};
+
+export default function AdminStatistik() {
+  React.useEffect(() => { document.title = 'Statistik — Admin Peta Tematik'; }, []);
+
+  const [list, setList]           = useState<Statistik[]>([]);
+  const [total, setTotal]         = useState(0);
+  const [page, setPage]           = useState(1);
+  const [loading, setLoading]     = useState(true);
+  const [filterTahun, setFilterTahun] = useState('');
+  const [filterKdkec, setFilterKdkec] = useState('');
+  const [showForm, setShowForm]   = useState(false);
+  const [showDeleteId, setShowDeleteId] = useState<number | null>(null);
+  const [editId, setEditId]       = useState<number | null>(null);
+  const [form, setForm]           = useState<StatistikFormData>(EMPTY_FORM);
+  const [saving, setSaving]       = useState(false);
+  const [formError, setFormError] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ berhasil: number; gagal: number; errors: { baris: number; pesan: string }[] } | null>(null);
+  const [tahunList, setTahunList] = useState<number[]>([]);
+  const { toast } = useToast();
+
+  const { data: kecamatanList } = useKecamatan(KDKAB_PADANG_PARIAMAN);
+  const { data: nagariList }    = useNagari(form.kdkec);
+  const { data: korongList }    = useKorong(form.kddesa);
+
+  const fetchList = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params: Record<string, string | number> = { page, limit: ADMIN_PAGE_SIZE };
+      if (filterTahun) params.tahun = filterTahun;
+      if (filterKdkec) params.kdkec = filterKdkec;
+      const res = await api.get('/statistik', { params });
+      setList(res.data.data ?? []);
+      setTotal(res.data.total ?? 0);
+      if (tahunList.length === 0) {
+        const all = await api.get('/statistik', { params: { limit: 9999 } });
+        const allData: Statistik[] = all.data.data ?? all.data;
+        const tahuns = [...new Set(allData.map(s => s.tahun))] as number[];
+        setTahunList(tahuns.sort((a, b) => b - a));
+      }
+    } catch { /* silent */ }
+    finally { setLoading(false); }
+  }, [page, filterTahun, filterKdkec]);
+
+  useEffect(() => { fetchList(); }, [fetchList]);
+
+  const totalPages = Math.ceil(total / ADMIN_PAGE_SIZE);
+  const openAdd    = () => { setForm(EMPTY_FORM); setEditId(null); setFormError(''); setShowForm(true); };
+  const openEdit   = (s: Statistik) => {
+    setForm({ kdkab: s.kdkab, kdkec: s.kdkec ?? '', kddesa: s.kddesa ?? '', kdsls: s.kdsls ?? '', indikator: s.indikator, nilai: s.nilai, satuan: s.satuan ?? '', tahun: s.tahun });
+    setEditId(s.id); setFormError(''); setShowForm(true);
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.indikator || form.nilai === '' || !form.tahun) {
+      setFormError('Indikator, nilai, dan tahun wajib diisi'); return;
+    }
+    setSaving(true); setFormError('');
+    try {
+      const payload = { ...form, nilai: Number(form.nilai), tahun: Number(form.tahun) };
+      if (editId) await api.put(`/statistik/${editId}`, payload);
+      else        await api.post('/statistik', payload);
+      toast.success(editId ? 'Data statistik diperbarui' : 'Data statistik ditambahkan');
+      setShowForm(false); fetchList();
+    } catch (err: unknown) {
+      setFormError((err as { response?: { data?: { error?: string } } }).response?.data?.error ?? 'Gagal menyimpan');
+    } finally { setSaving(false); }
+  };
+
+  const confirmDelete = async () => {
+    if (!showDeleteId) return;
+    try {
+      await api.delete(`/statistik/${showDeleteId}`);
+      toast.success('Data statistik dihapus');
+      setShowDeleteId(null); fetchList();
+    } catch (err: unknown) {
+      toast.error((err as { response?: { data?: { error?: string } } }).response?.data?.error ?? 'Gagal menghapus');
+      setShowDeleteId(null);
+    }
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    setImporting(true); setImportResult(null);
+    const fd = new FormData(); fd.append('file', file);
+    try {
+      const res = await api.post('/statistik/import', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setImportResult(res.data); fetchList();
+      toast.success(`Import selesai: ${res.data.berhasil} berhasil`);
+    } catch (err: unknown) {
+      toast.error((err as { response?: { data?: { error?: string } } }).response?.data?.error ?? 'Gagal import');
+    } finally { setImporting(false); e.target.value = ''; }
+  };
+
+  const handleExport = async () => {
+    const res = await api.get('/statistik/export', { responseType: 'blob' });
+    const url = URL.createObjectURL(new Blob([res.data]));
+    const a = document.createElement('a'); a.href = url;
+    a.download = `statistik_${new Date().toISOString().split('T')[0]}.xlsx`;
+    a.click(); URL.revokeObjectURL(url);
+  };
 
   return (
-    <div className="space-y-6 max-w-5xl">
-      <div>
-        <h1 className="text-xl font-display font-bold text-neutral-900">Statistik</h1>
-        <p className="text-sm text-neutral-500 mt-0.5">Visualisasi data infrastruktur berdasarkan kategori dan wilayah</p>
-      </div>
+    <AdminLayout title="Manajemen Statistik">
+      <div className="space-y-4 max-w-7xl">
+        {/* Toolbar */}
+        <div className="flex flex-wrap gap-3 items-center justify-between">
+          <div className="flex gap-2 flex-wrap">
+            <label className={cn('cursor-pointer text-sm px-3 py-2 rounded-xl font-medium flex items-center gap-1.5', importing ? 'opacity-60 pointer-events-none bg-neutral-100 text-neutral-500' : 'bg-success-50 hover:bg-success-500/10 text-success-600 border border-success-500/20')}>
+              {importing ? <><span className="w-3.5 h-3.5 border-2 border-success-500 border-t-transparent rounded-full animate-spin" /> Importing...</> : <>📥 Import Excel</>}
+              <input type="file" accept=".xlsx" className="hidden" onChange={handleImport} disabled={importing} />
+            </label>
+            <Button variant="secondary" size="sm" onClick={handleExport}>📤 Export Excel</Button>
+          </div>
+          <div className="flex gap-2 flex-wrap items-center">
+            <Select value={filterTahun} onChange={e => { setFilterTahun(e.target.value); setPage(1); }} containerClassName="w-32">
+              <option value="">Semua Tahun</option>
+              {tahunList.map(t => <option key={t} value={t}>{t}</option>)}
+            </Select>
+            <Select value={filterKdkec} onChange={e => { setFilterKdkec(e.target.value); setPage(1); }} containerClassName="w-40">
+              <option value="">Semua Kecamatan</option>
+              {kecamatanList.map(k => <option key={k.kdkec} value={k.kdkec ?? ''}>{k.nama}</option>)}
+            </Select>
+            <Button onClick={openAdd} leftIcon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>}>Tambah</Button>
+          </div>
+        </div>
 
-      {loading ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {[1,2,3,4].map(i => <div key={i} className="h-64 rounded-2xl bg-neutral-200 animate-pulse" />)}
+        {/* Import result */}
+        {importResult && (
+          <div className={cn('p-3 rounded-xl text-sm', importResult.gagal > 0 ? 'bg-warning-50 border border-warning-500/20' : 'bg-success-50 border border-success-500/20')}>
+            ✅ Berhasil: <b>{importResult.berhasil}</b> | ❌ Gagal: <b>{importResult.gagal}</b>
+            <button type="button" onClick={() => setImportResult(null)} className="ml-3 text-xs hover:underline">Tutup</button>
+          </div>
+        )}
+
+        {/* Tabel */}
+        <div className="bg-white rounded-2xl shadow-soft border border-neutral-200/60 overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-neutral-100 text-xs text-neutral-500 flex justify-between">
+            <span>{total.toLocaleString('id-ID')} data</span>
+            <span>Hal. {page}/{totalPages || 1}</span>
+          </div>
+          {loading ? (
+            <div className="p-6 space-y-3">{[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-10" />)}</div>
+          ) : list.length === 0 ? (
+            <div className="py-16 text-center">
+              <span className="text-4xl block mb-3" aria-hidden="true">📈</span>
+              <p className="text-sm font-medium text-neutral-600">Belum ada data statistik</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="admin-table min-w-[580px]">
+                <thead>
+                  <tr>
+                    <th className="w-8">#</th>
+                    <th>Indikator</th>
+                    <th>Wilayah</th>
+                    <th className="text-right">Nilai</th>
+                    <th>Satuan</th>
+                    <th className="text-center">Tahun</th>
+                    <th className="text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {list.map((item, idx) => (
+                    <tr key={item.id}>
+                      <td className="text-neutral-400 text-xs">{(page - 1) * ADMIN_PAGE_SIZE + idx + 1}</td>
+                      <td className="font-medium text-neutral-900 max-w-[220px]">
+                        <span className="truncate block">{item.indikator}</span>
+                      </td>
+                      <td className="text-xs font-mono text-neutral-500">{item.kddesa ?? item.kdkec ?? item.kdkab}</td>
+                      <td className="text-right font-mono font-semibold text-neutral-900">{item.nilai.toLocaleString('id-ID')}</td>
+                      <td className="text-xs text-neutral-500">{item.satuan ?? '—'}</td>
+                      <td className="text-center"><Badge variant="primary">{item.tahun}</Badge></td>
+                      <td>
+                        <div className="flex justify-center items-center gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => openEdit(item)} aria-label="Edit">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => setShowDeleteId(item.id)} aria-label="Hapus" className="text-danger-500 hover:bg-danger-50">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><polyline points="3 6 5 6 21 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /><path d="M19 6l-1 14H6L5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {totalPages > 1 && (
+            <div className="px-4 py-3 border-t border-neutral-100 flex justify-center items-center gap-2">
+              <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>← Prev</Button>
+              <span className="text-xs text-neutral-500 px-2">{page} / {totalPages}</span>
+              <Button variant="ghost" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>Next →</Button>
+            </div>
+          )}
         </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          <div className="bg-white rounded-2xl border border-neutral-100 shadow-soft p-5">
-            <h2 className="text-sm font-display font-semibold text-neutral-900 mb-4">Distribusi per Kategori</h2>
-            <DonutChart data={data?.perKategori || []} />
-          </div>
-          <div className="bg-white rounded-2xl border border-neutral-100 shadow-soft p-5">
-            <h2 className="text-sm font-display font-semibold text-neutral-900 mb-4">Jumlah per Kecamatan</h2>
-            <BarChart data={data?.perKecamatan || []} />
-          </div>
-          <div className="bg-white rounded-2xl border border-neutral-100 shadow-soft p-5 lg:col-span-2">
-            <h2 className="text-sm font-display font-semibold text-neutral-900 mb-4">Trend Penambahan Data</h2>
-            <BarChart data={data?.trend || []} colorScheme="brand" />
-          </div>
-        </div>
-      )}
-    </div>
+
+        {/* Modal Form */}
+        <Modal isOpen={showForm} onClose={() => setShowForm(false)} title={editId ? 'Edit Data Statistik' : 'Tambah Data Statistik'} size="md"
+          footer={<><Button variant="secondary" onClick={() => setShowForm(false)}>Batal</Button><Button type="submit" form="stat-form" isLoading={saving}>Simpan</Button></>}>
+          <form id="stat-form" onSubmit={handleSave} className="space-y-4">
+            <Input label="Indikator" required value={form.indikator} onChange={e => setForm(f => ({ ...f, indikator: e.target.value }))} placeholder="Contoh: Jumlah Penduduk" />
+            <div className="grid grid-cols-2 gap-3">
+              <Input label="Nilai" required type="number" step="any" value={form.nilai} onChange={e => setForm(f => ({ ...f, nilai: parseFloat(e.target.value) || '' }))} placeholder="0" />
+              <Input label="Satuan" value={form.satuan} onChange={e => setForm(f => ({ ...f, satuan: e.target.value }))} placeholder="jiwa, km², dll" />
+            </div>
+            <Input label="Tahun" required type="number" value={form.tahun} onChange={e => setForm(f => ({ ...f, tahun: parseInt(e.target.value) || new Date().getFullYear() }))} />
+            <div>
+              <p className="text-xs font-medium text-neutral-600 mb-2">Wilayah <span className="text-neutral-400 font-normal">(kosong = level kabupaten)</span></p>
+              <div className="grid grid-cols-3 gap-2">
+                <Select value={form.kdkec} onChange={e => setForm(f => ({ ...f, kdkec: e.target.value, kddesa: '', kdsls: '' }))}>
+                  <option value="">Kecamatan</option>
+                  {kecamatanList.map(k => <option key={k.kdkec} value={k.kdkec ?? ''}>{k.nama}</option>)}
+                </Select>
+                <Select value={form.kddesa} onChange={e => setForm(f => ({ ...f, kddesa: e.target.value, kdsls: '' }))} disabled={!form.kdkec}>
+                  <option value="">Nagari</option>
+                  {nagariList.map(n => <option key={n.kddesa} value={n.kddesa ?? ''}>{n.nama}</option>)}
+                </Select>
+                <Select value={form.kdsls} onChange={e => setForm(f => ({ ...f, kdsls: e.target.value }))} disabled={!form.kddesa}>
+                  <option value="">Korong</option>
+                  {korongList.map(k => <option key={k.kdsls} value={k.kdsls ?? ''}>{k.nama}</option>)}
+                </Select>
+              </div>
+            </div>
+            {formError && <div role="alert" className="text-xs text-danger-600 bg-danger-50 border border-danger-500/20 rounded-xl px-3 py-2">{formError}</div>}
+          </form>
+        </Modal>
+
+        <Modal isOpen={showDeleteId !== null} onClose={() => setShowDeleteId(null)} title="Hapus Data" size="sm"
+          footer={<><Button variant="secondary" onClick={() => setShowDeleteId(null)}>Batal</Button><Button variant="danger" onClick={confirmDelete}>Hapus</Button></>}>
+          <p className="text-sm text-neutral-600">Apakah Anda yakin ingin menghapus data statistik ini?</p>
+        </Modal>
+      </div>
+    </AdminLayout>
   );
 }

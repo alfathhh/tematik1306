@@ -1,162 +1,308 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import AdminLayout from './AdminLayout';
 import api from '../../lib/api';
+import { Infrastruktur, KategoriInfra, InfrastrukturFormData } from '../../types';
+import { ADMIN_PAGE_SIZE, KDKAB_PADANG_PARIAMAN } from '../../constants';
+import { MapContainer as LeafletMap, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
+import { useKecamatan, useNagari, useKorong } from '../../hooks/useWilayah';
+import { FotoUpload } from '../../components/admin/FotoUpload';
 import { Button } from '../../components/ui/Button';
-import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
-import { FotoUpload } from '../../components/admin/FotoUpload';
 import { Badge } from '../../components/ui/Badge';
-import { useKategoriStore } from '../../store/kategoriStore';
-import { useWilayahStore } from '../../store/wilayahStore';
-import type { Infrastruktur } from '../../types';
+import { Modal } from '../../components/ui/Modal';
+import { Skeleton } from '../../components/ui/Skeleton';
+import { useToast } from '../../components/ui/Toast';
+import { cn } from '../../lib/cn';
 
-type FormData = {
-  nama: string;
-  deskripsi: string;
-  kategoriId: string;
-  kecamatanId: string;
-  nagariId: string;
-  lat: string;
-  lng: string;
-  foto: string[];
+/**
+ * AdminInfrastruktur — halaman CRUD data infrastruktur.
+ *
+ * Fix: versi lama mengimport useKategoriStore dan useWilayahStore yang tidak ada,
+ * dan menggunakan { FotoUpload } dengan prop schema berbeda (value: string[]).
+ * Sekarang fetch kategori langsung dari API dan pakai hooks useKecamatan/useNagari/useKorong.
+ */
+
+// Fix Leaflet default icon (hilang saat di-bundle oleh Vite)
+delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  iconUrl:       'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  shadowUrl:     'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+});
+
+const EMPTY_FORM: InfrastrukturFormData = {
+  nama: '', kategori: '', alamat: '', fotoUrl: '',
+  lat: '', lng: '', kdkab: KDKAB_PADANG_PARIAMAN,
+  kdkec: '', kddesa: '', kdsls: '',
 };
 
-const EMPTY: FormData = { nama: '', deskripsi: '', kategoriId: '', kecamatanId: '', nagariId: '', lat: '', lng: '', foto: [] };
+/** MapPicker — mini-map untuk pilih koordinat dengan klik. */
+function MapPicker({ lat, lng, onChange }: { lat: number | ''; lng: number | ''; onChange: (lat: number, lng: number) => void }) {
+  const center: [number, number] = (lat !== '' && lng !== '') ? [lat, lng] : [-0.5397, 100.1187];
+  function ClickHandler() {
+    useMapEvents({ click(e) { onChange(e.latlng.lat, e.latlng.lng); } });
+    return null;
+  }
+  return (
+    <div className="h-48 rounded-xl overflow-hidden border border-neutral-200">
+      <LeafletMap center={center} zoom={12} style={{ height: '100%', width: '100%' }} key={`${lat}-${lng}`}>
+        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+        <ClickHandler />
+        {lat !== '' && lng !== '' && <Marker position={[lat, lng]} />}
+      </LeafletMap>
+    </div>
+  );
+}
 
-export default function InfrastrukturPage() {
-  const [list, setList] = useState<Infrastruktur[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<Infrastruktur | null>(null);
-  const [form, setForm] = useState<FormData>(EMPTY);
-  const [saving, setSaving] = useState(false);
-  const [search, setSearch] = useState('');
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+export default function AdminInfrastruktur() {
+  React.useEffect(() => { document.title = 'Infrastruktur — Admin Peta Tematik'; }, []);
 
-  const { kategoriList, fetchKategori } = useKategoriStore();
-  const { kecamatanList, nagariList, fetchKecamatan, fetchNagari } = useWilayahStore();
+  const [list, setList]           = useState<Infrastruktur[]>([]);
+  const [total, setTotal]         = useState(0);
+  const [page, setPage]           = useState(1);
+  const [loading, setLoading]     = useState(true);
+  const [search, setSearch]       = useState('');
+  const [filterKat, setFilterKat] = useState('');
+  const [kategoriList, setKategoriList] = useState<KategoriInfra[]>([]);
+  const [showForm, setShowForm]   = useState(false);
+  const [showDeleteId, setShowDeleteId] = useState<number | null>(null);
+  const [editId, setEditId]       = useState<number | null>(null);
+  const [form, setForm]           = useState<InfrastrukturFormData>(EMPTY_FORM);
+  const [saving, setSaving]       = useState(false);
+  const [formError, setFormError] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ berhasil: number; gagal: number; errors: { baris: number; pesan: string }[] } | null>(null);
+  const { toast } = useToast();
 
+  const { data: kecamatanList } = useKecamatan(KDKAB_PADANG_PARIAMAN);
+  const { data: nagariList }    = useNagari(form.kdkec);
+  const { data: korongList }    = useKorong(form.kddesa);
+
+  // Fetch kategori dari API (bukan dari store fiktif)
   useEffect(() => {
-    document.title = 'Infrastruktur — Admin Peta Tematik';
-    fetchKategori();
-    fetchKecamatan();
+    api.get('/kategori').then(res => setKategoriList(res.data)).catch(console.error);
   }, []);
 
-  useEffect(() => {
-    if (form.kecamatanId) fetchNagari(form.kecamatanId);
-  }, [form.kecamatanId]);
-
-  const load = useCallback(() => {
+  const fetchList = useCallback(async () => {
     setLoading(true);
-    api.get('/admin/infrastruktur').then(res => setList(res.data)).catch(console.error).finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  function openAdd() { setEditing(null); setForm(EMPTY); setOpen(true); }
-  function openEdit(item: Infrastruktur) {
-    setEditing(item);
-    setForm({ nama: item.nama, deskripsi: item.deskripsi || '', kategoriId: item.kategoriId, kecamatanId: item.kecamatanId || '', nagariId: item.nagariId || '', lat: String(item.lat), lng: String(item.lng), foto: item.foto || [] });
-    setOpen(true);
-  }
-
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
     try {
-      const body = { ...form, lat: parseFloat(form.lat), lng: parseFloat(form.lng) };
-      if (editing) await api.put(`/admin/infrastruktur/${editing.id}`, body);
-      else await api.post('/admin/infrastruktur', body);
-      setOpen(false);
-      load();
-    } catch (err) { console.error(err); }
-    finally { setSaving(false); }
-  }
+      const params: Record<string, string | number> = { page, limit: ADMIN_PAGE_SIZE };
+      if (search)    params.search   = search;
+      if (filterKat) params.kategori = filterKat;
+      const res = await api.get('/infrastruktur', { params });
+      setList(res.data.data ?? []);
+      setTotal(res.data.total ?? 0);
+    } catch { /* silent */ }
+    finally { setLoading(false); }
+  }, [page, search, filterKat]);
 
-  async function handleDelete(id: string) {
-    try { await api.delete(`/admin/infrastruktur/${id}`); load(); }
-    catch (err) { console.error(err); }
-    finally { setDeleteConfirm(null); }
-  }
+  useEffect(() => { fetchList(); }, [fetchList]);
 
-  const filtered = list.filter(i => i.nama.toLowerCase().includes(search.toLowerCase()));
+  const totalPages = Math.ceil(total / ADMIN_PAGE_SIZE);
+  const openAdd    = () => { setForm(EMPTY_FORM); setEditId(null); setFormError(''); setShowForm(true); };
+  const openEdit   = (i: Infrastruktur) => {
+    setForm({ nama: i.nama, kategori: i.kategori, alamat: i.alamat ?? '', fotoUrl: i.fotoUrl ?? '', lat: i.lat, lng: i.lng, kdkab: i.kdkab, kdkec: i.kdkec, kddesa: i.kddesa, kdsls: i.kdsls ?? '' });
+    setEditId(i.id); setFormError(''); setShowForm(true);
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.nama || !form.kategori || form.lat === '' || form.lng === '' || !form.kdkec || !form.kddesa) {
+      setFormError('Nama, kategori, koordinat, kecamatan, dan nagari wajib diisi'); return;
+    }
+    setSaving(true); setFormError('');
+    try {
+      if (editId) await api.put(`/infrastruktur/${editId}`, form);
+      else        await api.post('/infrastruktur', form);
+      toast.success(editId ? 'Data berhasil diperbarui' : 'Data berhasil ditambahkan');
+      setShowForm(false); fetchList();
+    } catch (err: unknown) {
+      setFormError((err as { response?: { data?: { error?: string } } }).response?.data?.error ?? 'Gagal menyimpan');
+    } finally { setSaving(false); }
+  };
+
+  const confirmDelete = async () => {
+    if (!showDeleteId) return;
+    try {
+      await api.delete(`/infrastruktur/${showDeleteId}`);
+      toast.success('Data berhasil dihapus');
+      setShowDeleteId(null); fetchList();
+    } catch (err: unknown) {
+      toast.error((err as { response?: { data?: { error?: string } } }).response?.data?.error ?? 'Gagal menghapus');
+      setShowDeleteId(null);
+    }
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    setImporting(true); setImportResult(null);
+    const fd = new FormData(); fd.append('file', file);
+    try {
+      const res = await api.post('/infrastruktur/import', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setImportResult(res.data); fetchList();
+      toast.success(`Import selesai: ${res.data.berhasil} berhasil, ${res.data.gagal} gagal`);
+    } catch (err: unknown) {
+      toast.error((err as { response?: { data?: { error?: string } } }).response?.data?.error ?? 'Gagal import');
+    } finally { setImporting(false); e.target.value = ''; }
+  };
+
+  const handleExport = async () => {
+    const res = await api.get('/infrastruktur/export', { responseType: 'blob' });
+    const url = URL.createObjectURL(new Blob([res.data]));
+    const a = document.createElement('a'); a.href = url;
+    a.download = `infrastruktur_${new Date().toISOString().split('T')[0]}.xlsx`;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  const getKat = (v: string) => kategoriList.find(k => k.value === v);
 
   return (
-    <div className="space-y-5 max-w-5xl">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-xl font-display font-bold text-neutral-900">Infrastruktur</h1>
-          <p className="text-sm text-neutral-500 mt-0.5">Kelola data titik infrastruktur di peta</p>
+    <AdminLayout title="Manajemen Infrastruktur">
+      <div className="space-y-4 max-w-7xl">
+        {/* Toolbar */}
+        <div className="flex flex-wrap gap-3 items-center justify-between">
+          <div className="flex gap-2 flex-wrap items-center">
+            <label className={cn('cursor-pointer text-sm px-3 py-2 rounded-xl font-medium flex items-center gap-1.5 transition-colors', importing ? 'opacity-60 pointer-events-none bg-neutral-100 text-neutral-500' : 'bg-success-50 hover:bg-success-500/10 text-success-600 border border-success-500/20')}>
+              {importing ? <><span className="w-3.5 h-3.5 border-2 border-success-500 border-t-transparent rounded-full animate-spin" /> Importing...</> : <>📥 Import Excel</>}
+              <input type="file" accept=".xlsx" className="hidden" onChange={handleImport} disabled={importing} />
+            </label>
+            <Button variant="secondary" size="sm" onClick={handleExport}>📤 Export Excel</Button>
+          </div>
+          <div className="flex gap-2 flex-wrap items-center">
+            <Input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Cari nama..." containerClassName="w-44"
+              leftIcon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2"/><path d="M21 21l-4.35-4.35" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>} />
+            <Select value={filterKat} onChange={e => { setFilterKat(e.target.value); setPage(1); }} containerClassName="w-40">
+              <option value="">Semua Kategori</option>
+              {kategoriList.map(k => <option key={k.value} value={k.value}>{k.icon} {k.label}</option>)}
+            </Select>
+            <Button onClick={openAdd} leftIcon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>}>Tambah</Button>
+          </div>
         </div>
-        <Button onClick={openAdd} size="sm">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-          Tambah
-        </Button>
-      </div>
 
-      <div className="relative max-w-xs">
-        <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari nama infrastruktur..." className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-neutral-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400" />
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400"><circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2"/><path d="M21 21l-4.35-4.35" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-      </div>
-
-      <div className="bg-white rounded-2xl border border-neutral-100 shadow-soft overflow-hidden">
-        {loading ? (
-          <div className="divide-y divide-neutral-50">{[1,2,3,4].map(i => <div key={i} className="px-5 py-3 flex gap-3"><div className="flex-1 h-4 bg-neutral-100 rounded animate-pulse" /></div>)}</div>
-        ) : !filtered.length ? (
-          <div className="px-5 py-10 text-center text-sm text-neutral-400">{search ? 'Tidak ditemukan hasil.' : 'Belum ada data infrastruktur.'}</div>
-        ) : (
-          <div className="divide-y divide-neutral-50">
-            {filtered.map(item => (
-              <div key={item.id} className="px-5 py-3 flex items-center gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-neutral-900 truncate">{item.nama}</span>
-                    <Badge color={item.kategori?.warna as any}>{item.kategori?.label}</Badge>
-                  </div>
-                  <div className="text-xs text-neutral-500 mt-0.5">{item.kecamatan?.nama}{item.nagari ? ` · ${item.nagari.nama}` : ''}</div>
-                </div>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <button type="button" onClick={() => openEdit(item)} className="w-8 h-8 flex items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-100 transition-colors">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  </button>
-                  <button type="button" onClick={() => setDeleteConfirm(item.id)} className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 transition-colors">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  </button>
-                </div>
-              </div>
-            ))}
+        {/* Import result */}
+        {importResult && (
+          <div className={cn('p-3 rounded-xl text-sm flex items-center justify-between gap-3', importResult.gagal > 0 ? 'bg-warning-50 border border-warning-500/20 text-warning-600' : 'bg-success-50 border border-success-500/20 text-success-600')}>
+            <span>✅ Berhasil: <b>{importResult.berhasil}</b> &nbsp;|&nbsp; ❌ Gagal: <b>{importResult.gagal}</b></span>
+            <button type="button" onClick={() => setImportResult(null)} className="text-xs hover:underline">Tutup</button>
           </div>
         )}
-      </div>
 
-      <Modal open={open} onClose={() => setOpen(false)} title={editing ? 'Edit Infrastruktur' : 'Tambah Infrastruktur'}>
-        <form onSubmit={handleSave} className="space-y-4">
-          <div className="space-y-1"><label className="text-xs font-medium text-neutral-700">Nama</label><Input value={form.nama} onChange={e => setForm(f => ({...f, nama: e.target.value}))} required /></div>
-          <div className="space-y-1"><label className="text-xs font-medium text-neutral-700">Deskripsi</label><textarea value={form.deskripsi} onChange={e => setForm(f => ({...f, deskripsi: e.target.value}))} className="w-full px-3 py-2 text-sm rounded-xl border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400 resize-none" rows={3} /></div>
-          <div className="space-y-1"><label className="text-xs font-medium text-neutral-700">Kategori</label><Select value={form.kategoriId} onChange={e => setForm(f => ({...f, kategoriId: e.target.value}))} required options={kategoriList.map(k => ({value: k.id, label: k.label}))} placeholder="Pilih kategori" /></div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1"><label className="text-xs font-medium text-neutral-700">Kecamatan</label><Select value={form.kecamatanId} onChange={e => setForm(f => ({...f, kecamatanId: e.target.value, nagariId: ''}))} options={kecamatanList.map(k => ({value: k.id, label: k.nama}))} placeholder="Pilih kecamatan" /></div>
-            <div className="space-y-1"><label className="text-xs font-medium text-neutral-700">Nagari</label><Select value={form.nagariId} onChange={e => setForm(f => ({...f, nagariId: e.target.value}))} options={nagariList.map(n => ({value: n.id, label: n.nama}))} placeholder="Pilih nagari" disabled={!form.kecamatanId} /></div>
+        {/* Tabel */}
+        <div className="bg-white rounded-2xl shadow-soft border border-neutral-200/60 overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-neutral-100 text-xs text-neutral-500 flex justify-between">
+            <span>{total.toLocaleString('id-ID')} data</span>
+            <span>Hal. {page}/{totalPages || 1}</span>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1"><label className="text-xs font-medium text-neutral-700">Latitude</label><Input value={form.lat} onChange={e => setForm(f => ({...f, lat: e.target.value}))} type="number" step="any" required /></div>
-            <div className="space-y-1"><label className="text-xs font-medium text-neutral-700">Longitude</label><Input value={form.lng} onChange={e => setForm(f => ({...f, lng: e.target.value}))} type="number" step="any" required /></div>
-          </div>
-          <div className="space-y-1"><label className="text-xs font-medium text-neutral-700">Foto</label><FotoUpload value={form.foto} onChange={urls => setForm(f => ({...f, foto: urls}))} /></div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Batal</Button>
-            <Button type="submit" loading={saving}>{editing ? 'Simpan' : 'Tambah'}</Button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal open={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} title="Hapus Infrastruktur">
-        <p className="text-sm text-neutral-600 mb-4">Yakin ingin menghapus infrastruktur ini? Tindakan tidak dapat dibatalkan.</p>
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => setDeleteConfirm(null)}>Batal</Button>
-          <Button variant="danger" onClick={() => deleteConfirm && handleDelete(deleteConfirm)}>Hapus</Button>
+          {loading ? (
+            <div className="p-6 space-y-3">{[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
+          ) : list.length === 0 ? (
+            <div className="py-16 text-center">
+              <span className="text-4xl block mb-3" aria-hidden="true">🏗️</span>
+              <p className="text-sm font-medium text-neutral-600">Belum ada data infrastruktur</p>
+              <p className="text-xs text-neutral-400 mt-1">Klik "Tambah" untuk menambahkan data pertama</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="admin-table min-w-[680px]">
+                <thead>
+                  <tr>
+                    <th className="w-8">#</th>
+                    <th>Nama</th>
+                    <th>Kategori</th>
+                    <th>Kecamatan</th>
+                    <th>Koordinat</th>
+                    <th className="text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {list.map((item, idx) => {
+                    const k = getKat(item.kategori);
+                    return (
+                      <tr key={item.id}>
+                        <td className="text-neutral-400 text-xs">{(page - 1) * ADMIN_PAGE_SIZE + idx + 1}</td>
+                        <td className="font-medium text-neutral-900 max-w-[200px]">
+                          <span className="truncate block">{item.nama}</span>
+                        </td>
+                        <td>
+                          {k ? <Badge color={k.color} icon={<span>{k.icon}</span>}>{k.label}</Badge>
+                            : <span className="text-neutral-400 text-xs">{item.kategori}</span>}
+                        </td>
+                        <td className="text-neutral-500 text-xs font-mono">{item.kdkec}</td>
+                        <td className="text-neutral-400 text-xs font-mono">{item.lat.toFixed(4)}, {item.lng.toFixed(4)}</td>
+                        <td>
+                          <div className="flex justify-center items-center gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => openEdit(item)} aria-label="Edit">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => setShowDeleteId(item.id)} aria-label="Hapus" className="text-danger-500 hover:bg-danger-50">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><polyline points="3 6 5 6 21 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><path d="M19 6l-1 14H6L5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><path d="M9 6V4h6v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {totalPages > 1 && (
+            <div className="px-4 py-3 border-t border-neutral-100 flex justify-center items-center gap-2">
+              <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>← Prev</Button>
+              <span className="text-xs text-neutral-500 px-2">{page} / {totalPages}</span>
+              <Button variant="ghost" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>Next →</Button>
+            </div>
+          )}
         </div>
-      </Modal>
-    </div>
+
+        {/* Modal Form Tambah/Edit */}
+        <Modal isOpen={showForm} onClose={() => setShowForm(false)}
+          title={editId ? 'Edit Infrastruktur' : 'Tambah Infrastruktur'} size="lg"
+          footer={<><Button variant="secondary" onClick={() => setShowForm(false)}>Batal</Button><Button type="submit" form="infra-form" isLoading={saving}>Simpan</Button></>}>
+          <form id="infra-form" onSubmit={handleSave} className="space-y-4">
+            <Input label="Nama" required value={form.nama} onChange={e => setForm(f => ({ ...f, nama: e.target.value }))} placeholder="Nama infrastruktur" />
+            <div className="grid grid-cols-2 gap-3">
+              <Select label="Kategori" required value={form.kategori} onChange={e => setForm(f => ({ ...f, kategori: e.target.value }))}>
+                <option value="">-- Pilih Kategori --</option>
+                {kategoriList.map(k => <option key={k.value} value={k.value}>{k.icon} {k.label}</option>)}
+              </Select>
+              <Input label="Alamat" value={form.alamat} onChange={e => setForm(f => ({ ...f, alamat: e.target.value }))} placeholder="Alamat lengkap" />
+            </div>
+            <FotoUpload value={form.fotoUrl} onChange={url => setForm(f => ({ ...f, fotoUrl: url }))} />
+            <div>
+              <label className="block text-xs font-medium text-neutral-600 mb-1.5">Koordinat * — klik peta untuk memilih lokasi</label>
+              <MapPicker lat={form.lat} lng={form.lng} onChange={(lat, lng) => setForm(f => ({ ...f, lat, lng }))} />
+              <div className="grid grid-cols-2 gap-3 mt-2">
+                <Input label="Latitude" type="number" step="any" value={form.lat} onChange={e => setForm(f => ({ ...f, lat: parseFloat(e.target.value) || '' }))} className="font-mono" />
+                <Input label="Longitude" type="number" step="any" value={form.lng} onChange={e => setForm(f => ({ ...f, lng: parseFloat(e.target.value) || '' }))} className="font-mono" />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <Select label="Kecamatan *" value={form.kdkec} onChange={e => setForm(f => ({ ...f, kdkec: e.target.value, kddesa: '', kdsls: '' }))}>
+                <option value="">-- Pilih --</option>
+                {kecamatanList.map(k => <option key={k.kdkec} value={k.kdkec ?? ''}>{k.nama}</option>)}
+              </Select>
+              <Select label="Nagari *" value={form.kddesa} onChange={e => setForm(f => ({ ...f, kddesa: e.target.value, kdsls: '' }))} disabled={!form.kdkec}>
+                <option value="">-- Pilih --</option>
+                {nagariList.map(n => <option key={n.kddesa} value={n.kddesa ?? ''}>{n.nama}</option>)}
+              </Select>
+              <Select label="Korong" value={form.kdsls} onChange={e => setForm(f => ({ ...f, kdsls: e.target.value }))} disabled={!form.kddesa}>
+                <option value="">-- Pilih --</option>
+                {korongList.map(k => <option key={k.kdsls} value={k.kdsls ?? ''}>{k.nama}</option>)}
+              </Select>
+            </div>
+            {formError && <div role="alert" className="text-xs text-danger-600 bg-danger-50 border border-danger-500/20 rounded-xl px-3 py-2">{formError}</div>}
+          </form>
+        </Modal>
+
+        {/* Modal Konfirmasi Hapus */}
+        <Modal isOpen={showDeleteId !== null} onClose={() => setShowDeleteId(null)} title="Hapus Data" size="sm"
+          footer={<><Button variant="secondary" onClick={() => setShowDeleteId(null)}>Batal</Button><Button variant="danger" onClick={confirmDelete}>Hapus</Button></>}>
+          <p className="text-sm text-neutral-600">Apakah Anda yakin ingin menghapus data infrastruktur ini? Tindakan ini tidak dapat dibatalkan.</p>
+        </Modal>
+      </div>
+    </AdminLayout>
   );
 }

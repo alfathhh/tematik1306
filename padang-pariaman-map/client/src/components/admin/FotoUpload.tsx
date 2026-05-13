@@ -8,10 +8,12 @@ interface Props {
   max?: number;
 }
 
-export function FotoUpload({ value, onChange, max = 5 }: Props) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState('');
+export function FotoUpload({ value, onChange }: { value: string; onChange: (url: string) => void }) {
+  const inputRef                        = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading]       = useState(false);
+  const [error, setError]               = useState('');
+  const [dragging, setDragging]         = useState(false);
+  const [showManual, setShowManual]     = useState(false);
 
   async function handleFiles(files: FileList | null) {
     if (!files || !files.length) return;

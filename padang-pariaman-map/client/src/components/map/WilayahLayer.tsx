@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useCallback } from 'react';
+import { useEffect, useMemo, useCallback, useRef } from 'react';
 import { GeoJSON, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { useFilterStore } from '../../store/filterStore';
@@ -25,11 +25,13 @@ function filterByProp(
 const STYLE_KECAMATAN = { color: '#10B981', weight: 1.5, fillOpacity: 0.06 };
 const STYLE_NAGARI    = { color: '#F59E0B', weight: 1.5, fillOpacity: 0.08 };
 const STYLE_KORONG    = { color: '#EF4444', weight: 1,   fillOpacity: 0.10 };
+const STYLE_KORONG_SELECTED = { color: '#1D4ED8', weight: 3, fillOpacity: 0.25 };
 const STYLE_HOVER     = { weight: 3, fillOpacity: 0.22 };
 
 export default function WilayahLayer() {
   const map = useMap();
   const { idkec, iddesa, idsls, setIdkec, setIddesa, setIdsls } = useFilterStore();
+  const geoJsonRef = useRef<L.GeoJSON | null>(null);
 
   const { displayData, baseStyle, level } = useMemo(() => {
     if (iddesa) {
@@ -44,12 +46,45 @@ export default function WilayahLayer() {
     }
     // Default — tampilkan semua kecamatan
     return { displayData: kecamatanGeoJSON, baseStyle: STYLE_KECAMATAN, level: 'kecamatan' as const };
-  }, [idkec, iddesa, idsls]);
+  }, [idkec, iddesa]);
 
+  // fitBounds hanya saat level/wilayah berubah, TIDAK saat idsls berubah
   useEffect(() => {
     const bounds = getBoundsFromGeoJSON(displayData);
     if (bounds) map.fitBounds(bounds, { padding: [30, 30] });
   }, [displayData, map]);
+
+  // Highlight korong yang dipilih tanpa re-render seluruh layer
+  useEffect(() => {
+    if (level !== 'korong' || !geoJsonRef.current) return;
+
+    geoJsonRef.current.eachLayer((layer) => {
+      const feature = (layer as any).feature as GeoJSON.Feature | undefined;
+      if (!feature?.properties) return;
+      const path = layer as L.Path;
+      if (idsls && String(feature.properties.idsls) === idsls) {
+        path.setStyle(STYLE_KORONG_SELECTED);
+        path.bringToFront();
+      } else {
+        path.setStyle(STYLE_KORONG);
+      }
+    });
+
+    // Zoom ke korong yang dipilih
+    if (idsls) {
+      const selectedFeature = displayData.features.find(
+        (f) => f.properties && String(f.properties.idsls) === idsls
+      );
+      if (selectedFeature) {
+        const singleFc: GeoJSON.FeatureCollection = {
+          type: 'FeatureCollection',
+          features: [selectedFeature],
+        };
+        const bounds = getBoundsFromGeoJSON(singleFc);
+        if (bounds) map.fitBounds(bounds, { padding: [50, 50] });
+      }
+    }
+  }, [idsls, level, displayData, map]);
 
   const onEachFeature = useCallback(
     (feature: GeoJSON.Feature, layer: L.Layer) => {
@@ -74,7 +109,15 @@ export default function WilayahLayer() {
           l.bringToFront();
         },
         mouseout(e) {
-          (e.target as L.Path).setStyle(baseStyle);
+          const l = e.target as L.Path;
+          const feat = (l as any).feature as GeoJSON.Feature | undefined;
+          // Jika korong ini sedang terpilih, kembalikan ke style selected
+          if (level === 'korong' && feat?.properties && 
+              useFilterStore.getState().idsls === String(feat.properties.idsls)) {
+            l.setStyle(STYLE_KORONG_SELECTED);
+          } else {
+            l.setStyle(baseStyle);
+          }
         },
         click() {
           if (level === 'kecamatan' && props.idkec)  setIdkec(String(props.idkec));
@@ -86,13 +129,26 @@ export default function WilayahLayer() {
     [level, baseStyle, setIdkec, setIddesa, setIdsls],
   );
 
+  // Style function yang memperhitungkan korong terpilih
+  const styleFunction = useCallback(
+    (feature?: GeoJSON.Feature) => {
+      if (level === 'korong' && feature?.properties && idsls &&
+          String(feature.properties.idsls) === idsls) {
+        return STYLE_KORONG_SELECTED;
+      }
+      return baseStyle;
+    },
+    [level, baseStyle, idsls],
+  );
+
   if (!displayData.features.length) return null;
 
   return (
     <GeoJSON
-      key={`${level}-${idkec}-${iddesa}-${idsls}`}
+      key={`${level}-${idkec}-${iddesa}`}
+      ref={(ref) => { geoJsonRef.current = ref as L.GeoJSON | null; }}
       data={displayData}
-      style={() => baseStyle}
+      style={styleFunction}
       onEachFeature={onEachFeature}
     />
   );

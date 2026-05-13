@@ -55,3 +55,9 @@
   pointer-events: none;
 }
 .wilayah-tooltip::before { display: none; }
+
+/* ── Hilangkan focus outline pada SVG path Leaflet saat diklik ── */
+.leaflet-interactive:focus,
+.leaflet-interactive:focus-visible {
+  outline: none !important;
+}

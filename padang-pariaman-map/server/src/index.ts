@@ -11,6 +11,7 @@ import infrastrukturRouter from './routes/infrastruktur';
 import statistikRouter from './routes/statistik';
 import wilayahRouter from './routes/wilayah';
 import uploadRouter from './routes/upload';
+import templateRouter from './routes/template';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -40,6 +41,7 @@ app.use('/api/infrastruktur', infrastrukturRouter);
 app.use('/api/statistik', statistikRouter);
 app.use('/api/wilayah', wilayahRouter);
 app.use('/api/upload', uploadRouter);
+app.use('/api/template', templateRouter);
 
 // ===== HEALTH CHECK =====
 app.get('/api/health', (_req, res) => {

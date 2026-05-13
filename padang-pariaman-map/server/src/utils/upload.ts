@@ -1,13 +1,14 @@
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 
 // ============================================================
-// MULTER UNTUK IMPORT EXCEL (.xlsx) — simpan ke /tmp
+// MULTER UNTUK IMPORT EXCEL (.xlsx) — simpan ke temp OS
 // ============================================================
 const excelStorage = multer.diskStorage({
   destination: (_req, _file, cb) => {
-    cb(null, '/tmp');
+    cb(null, os.tmpdir());
   },
   filename: (_req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);

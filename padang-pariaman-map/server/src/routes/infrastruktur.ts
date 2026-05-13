@@ -147,9 +147,9 @@ router.post('/import', authMiddleware, upload.single('file'), async (req: AuthRe
         if (isNaN(lat) || lat < -90 || lat > 90)   { errors.push({ baris: nomorBaris, pesan: 'Latitude tidak valid' }); continue; }
         if (isNaN(lng) || lng < -180 || lng > 180) { errors.push({ baris: nomorBaris, pesan: 'Longitude tidak valid' }); continue; }
         if (idkab !== IDKAB_PADANG_PARIAMAN) { errors.push({ baris: nomorBaris, pesan: `idkab harus "${IDKAB_PADANG_PARIAMAN}"` }); continue; }
-        if (idkec.length !== 7 || !idkec.startsWith(IDKAB_PADANG_PARIAMAN)) { errors.push({ baris: nomorBaris, pesan: 'idkec tidak valid (harus 7 digit, dimulai dengan 1306)' }); continue; }
+        if (idkec.length !== 6 || !idkec.startsWith(IDKAB_PADANG_PARIAMAN)) { errors.push({ baris: nomorBaris, pesan: 'idkec tidak valid (harus 6 digit, dimulai dengan 1306)' }); continue; }
         if (iddesa.length !== 10 || !iddesa.startsWith(idkec)) { errors.push({ baris: nomorBaris, pesan: 'iddesa tidak valid (harus 10 digit)' }); continue; }
-        if (idsls && (idsls.length !== 14 || !idsls.startsWith(iddesa))) { errors.push({ baris: nomorBaris, pesan: 'idsls tidak valid (harus 14 digit)' }); continue; }
+        if (idsls && (idsls.length !== 12 || !idsls.startsWith(iddesa))) { errors.push({ baris: nomorBaris, pesan: 'idsls tidak valid (harus 12 digit)' }); continue; }
         if (fotoUrl && !fotoUrl.startsWith('http://') && !fotoUrl.startsWith('https://') && !fotoUrl.startsWith('/uploads/')) {
           errors.push({ baris: nomorBaris, pesan: 'foto_url harus berupa URL valid' }); continue;
         }

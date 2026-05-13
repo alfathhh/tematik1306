@@ -1,89 +1,38 @@
 import React from 'react';
-import { useFilterStore } from '../../store/filterStore';
-import { useKecamatan, useNagari, useKorong } from '../../hooks/useWilayah';
-import { KDKAB_PADANG_PARIAMAN, NAMA_KABUPATEN } from '../../constants';
+import { useMapStore } from '../../store/mapStore';
+import { useWilayahStore } from '../../store/wilayahStore';
+import { Select } from '../ui/Select';
 
-// Filter wilayah cascade: Kabupaten → Kecamatan → Nagari → Korong
 export default function FilterWilayah() {
-  const { kdkab, kdkec, kddesa, kdsls, setKdkec, setKddesa, setKdsls, resetWilayah } = useFilterStore();
+  const { activeKecamatan, activeNagari, setKecamatan, setNagari } = useMapStore();
+  const { kecamatanList, nagariList, fetchNagari } = useWilayahStore();
 
-  const { data: kecamatanList, loading: loadingKec } = useKecamatan(kdkab);
-  const { data: nagariList, loading: loadingNagari } = useNagari(kdkec);
-  const { data: korongList, loading: loadingKorong } = useKorong(kddesa);
+  function handleKecamatan(e: React.ChangeEvent<HTMLSelectElement>) {
+    const val = e.target.value;
+    setKecamatan(val || null);
+    setNagari(null);
+    if (val) fetchNagari(val);
+  }
 
-  const hasFilter = kdkec !== '' || kddesa !== '' || kdsls !== '';
+  function handleNagari(e: React.ChangeEvent<HTMLSelectElement>) {
+    setNagari(e.target.value || null);
+  }
 
   return (
-    <div className="space-y-2 p-1">
-      {/* Kabupaten — fixed */}
-      <div>
-        <label className="block text-xs font-medium text-gray-500 mb-1">Kabupaten</label>
-        <div className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg text-gray-600 cursor-not-allowed">
-          {NAMA_KABUPATEN}
+    <div className="space-y-3">
+      <div className="space-y-1">
+        <label className="text-[11px] font-medium text-neutral-600">Kecamatan</label>
+        <Select value={activeKecamatan || ''} onChange={handleKecamatan} options={kecamatanList.map(k => ({ value: k.id, label: k.nama }))} placeholder="Semua kecamatan" />
+      </div>
+      {activeKecamatan && (
+        <div className="space-y-1">
+          <label className="text-[11px] font-medium text-neutral-600">Nagari</label>
+          <Select value={activeNagari || ''} onChange={handleNagari} options={nagariList.map(n => ({ value: n.id, label: n.nama }))} placeholder="Semua nagari" />
         </div>
-      </div>
-
-      {/* Kecamatan */}
-      <div>
-        <label className="block text-xs font-medium text-gray-500 mb-1">Kecamatan</label>
-        <select
-          value={kdkec}
-          onChange={e => setKdkec(e.target.value)}
-          disabled={loadingKec}
-          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:bg-gray-50 disabled:text-gray-400"
-        >
-          <option value="">-- Semua Kecamatan --</option>
-          {kecamatanList.map(k => (
-            <option key={k.kdkec} value={k.kdkec ?? ''}>
-              {k.nama}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Nagari */}
-      <div>
-        <label className="block text-xs font-medium text-gray-500 mb-1">Nagari / Desa</label>
-        <select
-          value={kddesa}
-          onChange={e => setKddesa(e.target.value)}
-          disabled={!kdkec || loadingNagari}
-          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:bg-gray-50 disabled:text-gray-400"
-        >
-          <option value="">-- Semua Nagari --</option>
-          {nagariList.map(n => (
-            <option key={n.kddesa} value={n.kddesa ?? ''}>
-              {n.nama}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Korong */}
-      <div>
-        <label className="block text-xs font-medium text-gray-500 mb-1">Korong / Dusun</label>
-        <select
-          value={kdsls}
-          onChange={e => setKdsls(e.target.value)}
-          disabled={!kddesa || loadingKorong}
-          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:bg-gray-50 disabled:text-gray-400"
-        >
-          <option value="">-- Semua Korong --</option>
-          {korongList.map(k => (
-            <option key={k.kdsls} value={k.kdsls ?? ''}>
-              {k.nama}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Tombol Reset */}
-      {hasFilter && (
-        <button
-          onClick={resetWilayah}
-          className="w-full mt-1 text-xs text-blue-600 hover:text-blue-800 py-1.5 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors"
-        >
-          ↩ Reset ke seluruh kabupaten
+      )}
+      {(activeKecamatan || activeNagari) && (
+        <button type="button" onClick={() => { setKecamatan(null); setNagari(null); }} className="text-xs text-brand-600 hover:text-brand-700 font-medium">
+          Reset filter wilayah
         </button>
       )}
     </div>

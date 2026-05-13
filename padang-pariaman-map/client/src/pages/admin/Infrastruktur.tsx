@@ -1,368 +1,162 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import AdminLayout from './AdminLayout';
+import React, { useEffect, useState, useCallback } from 'react';
 import api from '../../lib/api';
-import { Infrastruktur, KategoriInfra, InfrastrukturFormData } from '../../types';
-import { ADMIN_PAGE_SIZE, KDKAB_PADANG_PARIAMAN } from '../../constants';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
-import L from 'leaflet';
-import { useKecamatan, useNagari, useKorong } from '../../hooks/useWilayah';
-import FotoUpload from '../../components/admin/FotoUpload';
+import { Button } from '../../components/ui/Button';
+import { Modal } from '../../components/ui/Modal';
+import { Input } from '../../components/ui/Input';
+import { Select } from '../../components/ui/Select';
+import { FotoUpload } from '../../components/admin/FotoUpload';
+import { Badge } from '../../components/ui/Badge';
+import { useKategoriStore } from '../../store/kategoriStore';
+import { useWilayahStore } from '../../store/wilayahStore';
+import type { Infrastruktur } from '../../types';
 
-// Fix Leaflet default icon
-delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-});
-
-const EMPTY_FORM: InfrastrukturFormData = {
-  nama: '', kategori: '', alamat: '', fotoUrl: '',
-  lat: '', lng: '', kdkab: KDKAB_PADANG_PARIAMAN,
-  kdkec: '', kddesa: '', kdsls: '',
+type FormData = {
+  nama: string;
+  deskripsi: string;
+  kategoriId: string;
+  kecamatanId: string;
+  nagariId: string;
+  lat: string;
+  lng: string;
+  foto: string[];
 };
 
-// Mini peta untuk memilih koordinat
-function MapPicker({ lat, lng, onChange }: { lat: number | ''; lng: number | ''; onChange: (lat: number, lng: number) => void }) {
-  const center: [number, number] = (lat !== '' && lng !== '') ? [lat, lng] : [-0.5397, 100.1187];
+const EMPTY: FormData = { nama: '', deskripsi: '', kategoriId: '', kecamatanId: '', nagariId: '', lat: '', lng: '', foto: [] };
 
-  function ClickHandler() {
-    useMapEvents({
-      click(e) { onChange(e.latlng.lat, e.latlng.lng); },
-    });
-    return null;
-  }
+export default function InfrastrukturPage() {
+  const [list, setList] = useState<Infrastruktur[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Infrastruktur | null>(null);
+  const [form, setForm] = useState<FormData>(EMPTY);
+  const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
-  return (
-    <div className="h-48 rounded-lg overflow-hidden border border-gray-200">
-      <MapContainer center={center} zoom={12} style={{ height: '100%', width: '100%' }} key={`${lat}-${lng}`}>
-        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-        <ClickHandler />
-        {lat !== '' && lng !== '' && <Marker position={[lat, lng]} />}
-      </MapContainer>
-    </div>
-  );
-}
-
-export default function AdminInfrastruktur() {
-  const [list, setList]           = useState<Infrastruktur[]>([]);
-  const [total, setTotal]         = useState(0);
-  const [page, setPage]           = useState(1);
-  const [loading, setLoading]     = useState(true);
-  const [search, setSearch]       = useState('');
-  const [filterKat, setFilterKat] = useState('');
-  const [kategoriList, setKategoriList] = useState<KategoriInfra[]>([]);
-
-  const [showForm, setShowForm]   = useState(false);
-  const [editId, setEditId]       = useState<number | null>(null);
-  const [form, setForm]           = useState<InfrastrukturFormData>(EMPTY_FORM);
-  const [saving, setSaving]       = useState(false);
-  const [formError, setFormError] = useState('');
-
-  // Import/Export
-  const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<{ berhasil: number; gagal: number; errors: { baris: number; pesan: string }[] } | null>(null);
-
-  // Wilayah cascade di form
-  const { data: kecamatanList } = useKecamatan(KDKAB_PADANG_PARIAMAN);
-  const { data: nagariList }    = useNagari(form.kdkec);
-  const { data: korongList }    = useKorong(form.kddesa);
+  const { kategoriList, fetchKategori } = useKategoriStore();
+  const { kecamatanList, nagariList, fetchKecamatan, fetchNagari } = useWilayahStore();
 
   useEffect(() => {
-    api.get('/kategori').then(res => setKategoriList(res.data)).catch(console.error);
+    document.title = 'Infrastruktur — Admin Peta Tematik';
+    fetchKategori();
+    fetchKecamatan();
   }, []);
 
-  const fetchList = useCallback(async () => {
+  useEffect(() => {
+    if (form.kecamatanId) fetchNagari(form.kecamatanId);
+  }, [form.kecamatanId]);
+
+  const load = useCallback(() => {
     setLoading(true);
-    try {
-      const params: Record<string, string | number> = { page, limit: ADMIN_PAGE_SIZE };
-      if (search)    params.search   = search;
-      if (filterKat) params.kategori = filterKat;
-      const res = await api.get('/infrastruktur', { params });
-      setList(res.data.data || []);
-      setTotal(res.data.total || 0);
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
-  }, [page, search, filterKat]);
+    api.get('/admin/infrastruktur').then(res => setList(res.data)).catch(console.error).finally(() => setLoading(false));
+  }, []);
 
-  useEffect(() => { fetchList(); }, [fetchList]);
+  useEffect(() => { load(); }, [load]);
 
-  const totalPages = Math.ceil(total / ADMIN_PAGE_SIZE);
+  function openAdd() { setEditing(null); setForm(EMPTY); setOpen(true); }
+  function openEdit(item: Infrastruktur) {
+    setEditing(item);
+    setForm({ nama: item.nama, deskripsi: item.deskripsi || '', kategoriId: item.kategoriId, kecamatanId: item.kecamatanId || '', nagariId: item.nagariId || '', lat: String(item.lat), lng: String(item.lng), foto: item.foto || [] });
+    setOpen(true);
+  }
 
-  const openAdd  = () => { setForm(EMPTY_FORM); setEditId(null); setFormError(''); setShowForm(true); };
-  const openEdit = (i: Infrastruktur) => {
-    setForm({
-      nama: i.nama, kategori: i.kategori, alamat: i.alamat ?? '', fotoUrl: i.fotoUrl ?? '',
-      lat: i.lat, lng: i.lng, kdkab: i.kdkab, kdkec: i.kdkec, kddesa: i.kddesa, kdsls: i.kdsls ?? '',
-    });
-    setEditId(i.id); setFormError(''); setShowForm(true);
-  };
-
-  const handleSave = async (e: React.FormEvent) => {
+  async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.nama || !form.kategori || form.lat === '' || form.lng === '' || !form.kdkec || !form.kddesa) {
-      setFormError('Field nama, kategori, koordinat, kecamatan, dan nagari wajib diisi'); return;
-    }
-    setSaving(true); setFormError('');
+    setSaving(true);
     try {
-      if (editId) await api.put(`/infrastruktur/${editId}`, form);
-      else        await api.post('/infrastruktur', form);
-      setShowForm(false); fetchList();
-    } catch (err: unknown) {
-      setFormError((err as { response?: { data?: { error?: string } } }).response?.data?.error ?? 'Gagal menyimpan');
-    } finally { setSaving(false); }
-  };
+      const body = { ...form, lat: parseFloat(form.lat), lng: parseFloat(form.lng) };
+      if (editing) await api.put(`/admin/infrastruktur/${editing.id}`, body);
+      else await api.post('/admin/infrastruktur', body);
+      setOpen(false);
+      load();
+    } catch (err) { console.error(err); }
+    finally { setSaving(false); }
+  }
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Hapus data infrastruktur ini?')) return;
-    try { await api.delete(`/infrastruktur/${id}`); fetchList(); }
-    catch (err: unknown) { alert((err as { response?: { data?: { error?: string } } }).response?.data?.error ?? 'Gagal menghapus'); }
-  };
+  async function handleDelete(id: string) {
+    try { await api.delete(`/admin/infrastruktur/${id}`); load(); }
+    catch (err) { console.error(err); }
+    finally { setDeleteConfirm(null); }
+  }
 
-  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setImporting(true); setImportResult(null);
-    const fd = new FormData(); fd.append('file', file);
-    try {
-      const res = await api.post('/infrastruktur/import', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-      setImportResult(res.data); fetchList();
-    } catch (err: unknown) {
-      alert((err as { response?: { data?: { error?: string } } }).response?.data?.error ?? 'Gagal import');
-    } finally { setImporting(false); e.target.value = ''; }
-  };
-
-  const handleExport = async () => {
-    const res = await api.get('/infrastruktur/export', { responseType: 'blob' });
-    const url = URL.createObjectURL(new Blob([res.data]));
-    const a = document.createElement('a'); a.href = url;
-    a.download = `infrastruktur_export_${new Date().toISOString().split('T')[0]}.xlsx`;
-    a.click(); URL.revokeObjectURL(url);
-  };
-
-  const kat = (v: string) => kategoriList.find(k => k.value === v);
+  const filtered = list.filter(i => i.nama.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <AdminLayout title="Manajemen Infrastruktur">
-      <div className="space-y-4">
-        {/* Toolbar */}
-        <div className="flex flex-wrap gap-3 items-center justify-between">
-          <div className="flex gap-2 flex-wrap">
-            <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-              placeholder="Cari nama..." className="px-3 py-2 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 w-48" />
-            <select value={filterKat} onChange={e => { setFilterKat(e.target.value); setPage(1); }}
-              className="px-3 py-2 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">Semua Kategori</option>
-              {kategoriList.map(k => <option key={k.value} value={k.value}>{k.icon} {k.label}</option>)}
-            </select>
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            <label className={`cursor-pointer bg-green-600 hover:bg-green-700 text-white text-sm px-3 py-2 rounded-xl font-medium ${importing ? 'opacity-60 pointer-events-none' : ''}`}>
-              {importing ? '⏳ Importing...' : '📥 Import Excel'}
-              <input type="file" accept=".xlsx" className="hidden" onChange={handleImport} disabled={importing} />
-            </label>
-            <button onClick={handleExport} className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm px-3 py-2 rounded-xl font-medium">
-              📤 Export Excel
-            </button>
-            <button onClick={openAdd} className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-xl font-medium">
-              ＋ Tambah
-            </button>
-          </div>
+    <div className="space-y-5 max-w-5xl">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-xl font-display font-bold text-neutral-900">Infrastruktur</h1>
+          <p className="text-sm text-neutral-500 mt-0.5">Kelola data titik infrastruktur di peta</p>
         </div>
+        <Button onClick={openAdd} size="sm">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+          Tambah
+        </Button>
+      </div>
 
-        {/* Import result */}
-        {importResult && (
-          <div className={`p-3 rounded-xl text-sm ${importResult.gagal > 0 ? 'bg-yellow-50 border border-yellow-200' : 'bg-green-50 border border-green-200'}`}>
-            ✅ Berhasil: {importResult.berhasil} baris &nbsp;|&nbsp; ❌ Gagal: {importResult.gagal} baris
-            {importResult.errors.length > 0 && (
-              <details className="mt-2">
-                <summary className="cursor-pointer text-xs text-gray-500">Lihat error</summary>
-                <ul className="mt-1 space-y-0.5">
-                  {importResult.errors.slice(0, 10).map(e => (
-                    <li key={e.baris} className="text-xs text-red-600">Baris {e.baris}: {e.pesan}</li>
-                  ))}
-                </ul>
-              </details>
-            )}
-          </div>
-        )}
+      <div className="relative max-w-xs">
+        <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari nama infrastruktur..." className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-neutral-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400" />
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400"><circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2"/><path d="M21 21l-4.35-4.35" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+      </div>
 
-        {/* Tabel */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="px-4 py-2 border-b border-gray-100 text-xs text-gray-500">
-            {total} data • Halaman {page}/{totalPages || 1}
-          </div>
-          {loading ? (
-            <div className="p-6 text-center text-gray-400 text-sm">Memuat data...</div>
-          ) : list.length === 0 ? (
-            <div className="p-6 text-center text-gray-400 text-sm">Tidak ada data</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[700px]">
-                <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
-                  <tr>
-                    <th className="px-4 py-3 text-left w-8">#</th>
-                    <th className="px-4 py-3 text-left">Nama</th>
-                    <th className="px-4 py-3 text-left">Kategori</th>
-                    <th className="px-4 py-3 text-left">Kecamatan</th>
-                    <th className="px-4 py-3 text-left">Koordinat</th>
-                    <th className="px-4 py-3 text-center">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {list.map((item, idx) => {
-                    const k = kat(item.kategori);
-                    return (
-                      <tr key={item.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-gray-400 text-xs">{(page - 1) * ADMIN_PAGE_SIZE + idx + 1}</td>
-                        <td className="px-4 py-3 font-medium text-gray-800 max-w-[200px] truncate">{item.nama}</td>
-                        <td className="px-4 py-3">
-                          {k ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-white"
-                              style={{ backgroundColor: k.color }}>
-                              {k.icon} {k.label}
-                            </span>
-                          ) : item.kategori}
-                        </td>
-                        <td className="px-4 py-3 text-gray-500 text-xs font-mono">{item.kdkec}</td>
-                        <td className="px-4 py-3 text-gray-400 text-xs font-mono">
-                          {item.lat.toFixed(4)}, {item.lng.toFixed(4)}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <div className="flex justify-center gap-2">
-                            <button onClick={() => openEdit(item)} className="text-xs text-blue-600 hover:text-blue-800 font-medium">Edit</button>
-                            <button onClick={() => handleDelete(item.id)} className="text-xs text-red-500 hover:text-red-700 font-medium">Hapus</button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="px-4 py-3 border-t border-gray-100 flex justify-center gap-2">
-              <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}
-                className="px-3 py-1 text-xs border rounded-lg disabled:opacity-40 hover:bg-gray-50">← Prev</button>
-              <span className="px-3 py-1 text-xs text-gray-500">{page} / {totalPages}</span>
-              <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}
-                className="px-3 py-1 text-xs border rounded-lg disabled:opacity-40 hover:bg-gray-50">Next →</button>
-            </div>
-          )}
-        </div>
-
-        {/* Modal Form */}
-        {showForm && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl w-full max-w-2xl p-6 shadow-2xl my-4">
-              <div className="flex justify-between items-center mb-5">
-                <h2 className="font-semibold text-gray-800">{editId ? 'Edit Infrastruktur' : 'Tambah Infrastruktur'}</h2>
-                <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
-              </div>
-              <form onSubmit={handleSave} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Nama *</label>
-                    <input value={form.nama} onChange={e => setForm(f => ({ ...f, nama: e.target.value }))}
-                      placeholder="Nama infrastruktur"
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      <div className="bg-white rounded-2xl border border-neutral-100 shadow-soft overflow-hidden">
+        {loading ? (
+          <div className="divide-y divide-neutral-50">{[1,2,3,4].map(i => <div key={i} className="px-5 py-3 flex gap-3"><div className="flex-1 h-4 bg-neutral-100 rounded animate-pulse" /></div>)}</div>
+        ) : !filtered.length ? (
+          <div className="px-5 py-10 text-center text-sm text-neutral-400">{search ? 'Tidak ditemukan hasil.' : 'Belum ada data infrastruktur.'}</div>
+        ) : (
+          <div className="divide-y divide-neutral-50">
+            {filtered.map(item => (
+              <div key={item.id} className="px-5 py-3 flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-neutral-900 truncate">{item.nama}</span>
+                    <Badge color={item.kategori?.warna as any}>{item.kategori?.label}</Badge>
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Kategori *</label>
-                    <select value={form.kategori} onChange={e => setForm(f => ({ ...f, kategori: e.target.value }))}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                      <option value="">-- Pilih Kategori --</option>
-                      {kategoriList.map(k => <option key={k.value} value={k.value}>{k.icon} {k.label}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Alamat</label>
-                    <input value={form.alamat} onChange={e => setForm(f => ({ ...f, alamat: e.target.value }))}
-                      placeholder="Alamat lengkap"
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  </div>
-                  <div className="col-span-2">
-                    <FotoUpload
-                      value={form.fotoUrl}
-                      onChange={url => setForm(f => ({ ...f, fotoUrl: url }))}
-                    />
-                  </div>
+                  <div className="text-xs text-neutral-500 mt-0.5">{item.kecamatan?.nama}{item.nagari ? ` · ${item.nagari.nama}` : ''}</div>
                 </div>
-
-                {/* Map Picker */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Koordinat * — klik peta untuk memilih lokasi
-                  </label>
-                  <MapPicker
-                    lat={form.lat}
-                    lng={form.lng}
-                    onChange={(lat, lng) => setForm(f => ({ ...f, lat, lng }))}
-                  />
-                  <div className="grid grid-cols-2 gap-3 mt-2">
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-0.5">Latitude</label>
-                      <input type="number" step="any" value={form.lat}
-                        onChange={e => setForm(f => ({ ...f, lat: parseFloat(e.target.value) || '' }))}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-0.5">Longitude</label>
-                      <input type="number" step="any" value={form.lng}
-                        onChange={e => setForm(f => ({ ...f, lng: parseFloat(e.target.value) || '' }))}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Wilayah Cascade */}
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Kecamatan *</label>
-                    <select value={form.kdkec} onChange={e => setForm(f => ({ ...f, kdkec: e.target.value, kddesa: '', kdsls: '' }))}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                      <option value="">-- Pilih --</option>
-                      {kecamatanList.map(k => <option key={k.kdkec} value={k.kdkec ?? ''}>{k.nama}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Nagari *</label>
-                    <select value={form.kddesa} onChange={e => setForm(f => ({ ...f, kddesa: e.target.value, kdsls: '' }))}
-                      disabled={!form.kdkec}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50">
-                      <option value="">-- Pilih --</option>
-                      {nagariList.map(n => <option key={n.kddesa} value={n.kddesa ?? ''}>{n.nama}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Korong</label>
-                    <select value={form.kdsls} onChange={e => setForm(f => ({ ...f, kdsls: e.target.value }))}
-                      disabled={!form.kddesa}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50">
-                      <option value="">-- Pilih --</option>
-                      {korongList.map(k => <option key={k.kdsls} value={k.kdsls ?? ''}>{k.nama}</option>)}
-                    </select>
-                  </div>
-                </div>
-
-                {formError && (
-                  <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">⚠️ {formError}</div>
-                )}
-                <div className="flex justify-end gap-3 pt-2">
-                  <button type="button" onClick={() => setShowForm(false)}
-                    className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-xl hover:bg-gray-50">Batal</button>
-                  <button type="submit" disabled={saving}
-                    className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium disabled:opacity-60">
-                    {saving ? 'Menyimpan...' : 'Simpan'}
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button type="button" onClick={() => openEdit(item)} className="w-8 h-8 flex items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-100 transition-colors">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </button>
+                  <button type="button" onClick={() => setDeleteConfirm(item.id)} className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 transition-colors">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   </button>
                 </div>
-              </form>
-            </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
-    </AdminLayout>
+
+      <Modal open={open} onClose={() => setOpen(false)} title={editing ? 'Edit Infrastruktur' : 'Tambah Infrastruktur'}>
+        <form onSubmit={handleSave} className="space-y-4">
+          <div className="space-y-1"><label className="text-xs font-medium text-neutral-700">Nama</label><Input value={form.nama} onChange={e => setForm(f => ({...f, nama: e.target.value}))} required /></div>
+          <div className="space-y-1"><label className="text-xs font-medium text-neutral-700">Deskripsi</label><textarea value={form.deskripsi} onChange={e => setForm(f => ({...f, deskripsi: e.target.value}))} className="w-full px-3 py-2 text-sm rounded-xl border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400 resize-none" rows={3} /></div>
+          <div className="space-y-1"><label className="text-xs font-medium text-neutral-700">Kategori</label><Select value={form.kategoriId} onChange={e => setForm(f => ({...f, kategoriId: e.target.value}))} required options={kategoriList.map(k => ({value: k.id, label: k.label}))} placeholder="Pilih kategori" /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1"><label className="text-xs font-medium text-neutral-700">Kecamatan</label><Select value={form.kecamatanId} onChange={e => setForm(f => ({...f, kecamatanId: e.target.value, nagariId: ''}))} options={kecamatanList.map(k => ({value: k.id, label: k.nama}))} placeholder="Pilih kecamatan" /></div>
+            <div className="space-y-1"><label className="text-xs font-medium text-neutral-700">Nagari</label><Select value={form.nagariId} onChange={e => setForm(f => ({...f, nagariId: e.target.value}))} options={nagariList.map(n => ({value: n.id, label: n.nama}))} placeholder="Pilih nagari" disabled={!form.kecamatanId} /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1"><label className="text-xs font-medium text-neutral-700">Latitude</label><Input value={form.lat} onChange={e => setForm(f => ({...f, lat: e.target.value}))} type="number" step="any" required /></div>
+            <div className="space-y-1"><label className="text-xs font-medium text-neutral-700">Longitude</label><Input value={form.lng} onChange={e => setForm(f => ({...f, lng: e.target.value}))} type="number" step="any" required /></div>
+          </div>
+          <div className="space-y-1"><label className="text-xs font-medium text-neutral-700">Foto</label><FotoUpload value={form.foto} onChange={urls => setForm(f => ({...f, foto: urls}))} /></div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Batal</Button>
+            <Button type="submit" loading={saving}>{editing ? 'Simpan' : 'Tambah'}</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} title="Hapus Infrastruktur">
+        <p className="text-sm text-neutral-600 mb-4">Yakin ingin menghapus infrastruktur ini? Tindakan tidak dapat dibatalkan.</p>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setDeleteConfirm(null)}>Batal</Button>
+          <Button variant="danger" onClick={() => deleteConfirm && handleDelete(deleteConfirm)}>Hapus</Button>
+        </div>
+      </Modal>
+    </div>
   );
 }

@@ -1,20 +1,36 @@
 import React from 'react';
 import { useMapStore } from '../../store/mapStore';
+import { cn } from '../../lib/cn';
 
-// Tombol toggle basemap OSM ↔ Google Maps
+const BASEMAPS = [
+  { id: 'osm', label: 'OpenStreetMap' },
+  { id: 'satellite', label: 'Satelit' },
+  { id: 'topo', label: 'Topografi' },
+] as const;
+
+type BasemapId = typeof BASEMAPS[number]['id'];
+
 export default function BasemapToggle() {
-  const { basemap, toggleBasemap } = useMapStore();
+  const { basemap, setBasemap } = useMapStore();
 
   return (
-    <button
-      onClick={toggleBasemap}
-      className="absolute top-3 right-3 z-[1000] bg-white rounded-lg shadow-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 border border-gray-200 flex items-center gap-2 transition-colors"
-      title={`Ganti ke ${basemap === 'osm' ? 'Google Maps' : 'OpenStreetMap'}`}
-    >
-      <span>{basemap === 'osm' ? '🗺️' : '🛰️'}</span>
-      <span className="hidden sm:inline">
-        {basemap === 'osm' ? 'OSM' : 'Satelit'}
-      </span>
-    </button>
+    <div className="glass rounded-xl overflow-hidden shadow-soft flex">
+      {BASEMAPS.map((bm, idx) => (
+        <button
+          key={bm.id}
+          type="button"
+          onClick={() => setBasemap(bm.id as BasemapId)}
+          className={cn(
+            'px-3 py-1.5 text-[11px] font-medium transition-all',
+            idx !== 0 && 'border-l border-neutral-200/40',
+            basemap === bm.id
+              ? 'bg-white text-neutral-900 shadow-sm'
+              : 'text-neutral-600 hover:text-neutral-900 hover:bg-white/60'
+          )}
+        >
+          {bm.label}
+        </button>
+      ))}
+    </div>
   );
 }

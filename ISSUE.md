@@ -78,6 +78,40 @@ Ringkasan perubahan:
 
 ---
 
+---
+
+## Bug #2 — Named Export vs Default Import Mismatch (StatistikCard, BarChart, DonutChart)
+
+**Tanggal ditemukan:** 2026-05-13  
+**Severity:** 🔴 Critical — halaman `/` crash saat render StatistikPanel
+
+### Error
+
+```
+Uncaught SyntaxError: The requested module '/src/components/statistik/BarChart.tsx'
+does not provide an export named 'default'
+```
+
+### Root Cause
+
+Subagent menulis 3 komponen statistik dengan **named export** (`export function X`)
+namun `StatistikPanel.tsx` mengimport ketiganya sebagai **default import** (`import X from './X'`).
+Selain itu terjadi **prop schema mismatch** — nama prop berbeda antara pemakai dan penyedia:
+
+| File | Export lama | Import di StatistikPanel | Prop schema lama | Prop schema baru |
+|---|---|---|---|---|
+| `BarChart.tsx` | `export function BarChart` | `import BarChart from '...'` | `{label, value, color?}` | `{name, nilai, satuan?}` |
+| `DonutChart.tsx` | `export function DonutChart` | `import DonutChart from '...'` | `{label, value, color?}` | `{name, value, color}` |
+| `StatistikCard.tsx` | `export function StatistikCard` | `import StatistikCard from '...'` | `{label, value, color, icon?}` | `{indikator, nilai, satuan?, tahun?}` |
+
+### Fix
+
+Ketiga file diubah ke **`export default function`** dan prop schema diselaraskan
+dengan yang sudah dipakai `StatistikPanel.tsx`. Recharts dipakai sebagai charting
+library (sudah tersedia di `package.json`) menggantikan implementasi SVG manual.
+
+---
+
 ## Checklist Verifikasi Setelah Fix
 
 - [ ] `npm run dev` jalan tanpa error Vite

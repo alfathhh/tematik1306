@@ -134,7 +134,7 @@ export default function StatistikPanel({ kategoriList }: StatistikPanelProps) {
   const kosong = !loadingStat && judulTersedia.length === 0 && totalInfra === 0;
 
   return (
-    <div className="h-full w-[min(360px,calc(100vw-2rem))] overflow-y-auto panel-scroll px-3 py-4 space-y-4">
+    <div className="h-full w-full min-w-0 overflow-x-hidden overflow-y-auto panel-scroll px-3 py-4 space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="font-display font-semibold text-sm text-neutral-900">Statistik Wilayah</h2>

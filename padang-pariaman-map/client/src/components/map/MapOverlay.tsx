@@ -80,7 +80,7 @@ export default function MapOverlay({
 
           {/* Statistik Panel — kanan (z-40) */}
           {showStatistik && (
-            <div className="z-40">
+            <div className="z-40 w-[min(360px,calc(100vw-2rem))] shrink-0">
               <StatistikPanel kategoriList={kategoriList} />
             </div>
           )}

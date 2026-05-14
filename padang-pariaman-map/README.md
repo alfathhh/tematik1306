@@ -7,18 +7,22 @@ Aplikasi web peta interaktif untuk visualisasi data infrastruktur dan statistik 
 ## ✨ Fitur Utama
 
 ### Halaman Publik (`/`)
-- 🗺️ **Peta Interaktif** — Leaflet.js dengan toggle basemap OSM ↔ Google Satellite
+- 🗺️ **Peta Interaktif** — Leaflet.js dengan toggle basemap 3 pilihan:
+  - 🗺️ **Peta** (OpenStreetMap)
+  - 🛰️ **Satelit** (Google Satellite)
+  - 🛣️ **Jalan** (Google Road)
 - 🏷️ **Filter Kategori** — Aktifkan/nonaktifkan marker per kategori infrastruktur
-- 📍 **Filter Wilayah** — Cascade: Kabupaten → Kecamatan → Nagari → Korong
+- 📍 **Filter Wilayah Cascade** — Kabupaten → Kecamatan → Nagari → Korong dengan breadcrumb
 - 🔍 **Search** — Pencarian infrastruktur dengan debounce 300ms + flyTo peta
 - 📊 **Panel Statistik** — Card, Bar Chart, Donut Chart — update real-time sesuai filter wilayah
+- 🗺️ **Visualisasi Wilayah** — Shape GeoJSON dengan hover tooltip nama wilayah, klik untuk drill-down level
 
 ### Panel Admin (`/admin`) — URL tersembunyi, tidak ada link dari halaman publik
 - 🔐 **Login** aman dengan JWT (7 hari)
 - 🏗️ **Kelola Infrastruktur** — CRUD + MapPicker koordinat + **Upload Foto** + Import/Export Excel
 - 📸 **Upload Foto** — Drag & drop atau klik pilih gambar (JPG/PNG/WebP, maks 5MB), preview langsung
 - 📈 **Kelola Statistik** — CRUD + Import/Export Excel
-- 🏷️ **Kelola Kategori** — CRUD dengan color picker + proteksi hapus jika masih dipakai
+- 🏷️ **Kelola Kategori** — CRUD dengan color picker + emoji icon + proteksi hapus jika masih dipakai
 
 ---
 
@@ -137,33 +141,32 @@ URL akses foto: `http://localhost:3000/uploads/images/<nama-file>`
 ```
 padang-pariaman-map/
 ├── client/                        # Frontend React + Vite + Tailwind
-│   ├── public/
-│   │   └── geojson/               # File GeoJSON batas wilayah (statis)
-│   │       ├── kabupaten.geojson
-│   │       ├── kecamatan.geojson
-│   │       ├── nagari.geojson
-│   │       └── korong.geojson
-│   └── src/
-│       ├── components/
-│       │   ├── map/               # Komponen peta Leaflet
-│       │   ├── filter/            # Filter kategori & wilayah
-│       │   ├── search/            # SearchBar dengan debounce
-│       │   ├── statistik/         # Panel statistik & charts
-│       │   └── admin/             # FotoUpload, MapPicker, dll.
-│       ├── pages/
-│       │   ├── ClientMap.tsx      # Halaman peta publik
-│       │   └── admin/             # Login, Dashboard, Infrastruktur, dll.
-│       ├── store/                 # Zustand stores (map, filter, auth)
-│       ├── hooks/                 # Custom hooks (debounce, wilayah, dll.)
-│       ├── lib/                   # Axios instance, map utils
-│       └── types/                 # TypeScript interfaces
+│   ├── src/
+│   │   ├── assets/geojson/        # File GeoJSON batas wilayah (statis)
+│   │   │   ├── kabupaten.geojson
+│   │   │   ├── kecamatan.geojson       
+│   │   │   ├── nagari.geojson
+│   │   │   └── korong.geojson
+│   │   ├── components/
+│   │   │   ├── map/               # Komponen peta Leaflet
+│   │   │   ├── filter/            # Filter kategori & wilayah
+│   │   │   ├── search/            # SearchBar dengan debounce
+│   │   │   ├── statistik/         # Panel statistik & charts
+│   │   │   ├── ui/                # Primitif UI (Button, Input, Modal, dll)
+│   │   │   └── admin/             # FotoUpload, MapPicker, dll.
+│   │   ├── pages/
+│   │   │   ├── ClientMap.tsx      # Halaman peta publik
+│   │   │   └── admin/             # Login, Dashboard, Infrastruktur, Statistik, Kategori
+│   │   ├── store/                 # Zustand stores (map, filter, auth)
+│   │   ├── hooks/                 # Custom hooks (debounce, wilayah, infrastruktur, dll.)
+│   │   ├── lib/                   # Axios instance, map utils, cn utility
+│   │   └── types/                 # TypeScript interfaces
 │
 └── server/                        # Backend Express + TypeScript
     ├── uploads/
     │   └── images/                # Foto yang diupload admin (dibuat otomatis)
     └── src/
-        ├── routes/                # API routes (auth, infrastruktur, dll.)
-        │   └── upload.ts          # POST /api/upload/foto
+        ├── routes/                # API routes (auth, infrastruktur, kategori, statistik, wilayah, upload)
         ├── middleware/            # JWT auth middleware
         ├── prisma/                # Schema & seed
         └── utils/                 # Excel & upload (multer) utils
@@ -205,10 +208,10 @@ Sistem hierarki kode wilayah Kabupaten Padang Pariaman:
 
 | Level | Field | Panjang | Contoh | Catatan |
 |-------|-------|---------|--------|---------|
-| Kabupaten | `kdkab` | 4 digit | `1305` | Selalu tetap |
-| Kecamatan | `kdkec` | 6 digit | `130501` | Dimulai dengan `1305` |
-| Nagari | `kddesa` | 10 digit | `1305010001` | Dimulai dengan `kdkec` |
-| Korong | `kdsls` | 12 digit | `130501000101` | Dimulai dengan `kddesa` |
+| Kabupaten | `idkab` | 4 digit | `1306` | Selalu tetap |
+| Kecamatan | `idkec` | 6 digit | `130601` | Dimulai dengan `1306` |
+| Nagari | `iddesa` | 10 digit | `1306010001` | Dimulai dengan `idkec` |
+| Korong | `idsls` | 12 digit | `130601000101` | Dimulai dengan `iddesa` |
 
 ---
 
@@ -224,19 +227,19 @@ Sistem hierarki kode wilayah Kabupaten Padang Pariaman:
 | D | `foto_url` | ❌ | URL foto eksternal — **kosongkan jika foto akan diupload via admin** |
 | E | `lat` | ✅ | Latitude (contoh: `-0.5397`) |
 | F | `lng` | ✅ | Longitude (contoh: `100.1187`) |
-| G | `kdkab` | ✅ | Harus `1305` |
-| H | `kdkec` | ✅ | 6 digit, dimulai `1305` |
-| I | `kddesa` | ✅ | 10 digit |
-| J | `kdsls` | ❌ | 12 digit (korong, opsional) |
+| G | `idkab` | ✅ | Harus `1306` |
+| H | `idkec` | ✅ | 6 digit, dimulai `1306` |
+| I | `iddesa` | ✅ | 10 digit |
+| J | `idsls` | ❌ | 12 digit (korong, opsional) |
 
 ### Statistik
 
 | Kolom | Header | Wajib | Keterangan |
 |-------|--------|-------|------------|
-| A | `kdkab` | ✅ | Kode kabupaten |
-| B | `kdkec` | ❌ | Kode kecamatan |
-| C | `kddesa` | ❌ | Kode nagari |
-| D | `kdsls` | ❌ | Kode korong |
+| A | `idkab` | ✅ | Kode kabupaten |
+| B | `idkec` | ❌ | Kode kecamatan |
+| C | `iddesa` | ❌ | Kode nagari |
+| D | `idsls` | ❌ | Kode korong |
 | E | `indikator` | ✅ | Nama indikator (contoh: `Jumlah Penduduk`) |
 | F | `nilai` | ✅ | Angka |
 | G | `satuan` | ❌ | Satuan (contoh: `jiwa`) |
@@ -251,6 +254,27 @@ Sistem hierarki kode wilayah Kabupaten Padang Pariaman:
 - File `.env` **tidak di-commit** ke Git (ada di `.gitignore`)
 - Upload foto hanya menerima file gambar (JPG/PNG/WebP), maks 5MB
 - Import Excel dibatasi maks **5.000 baris** per file
+
+---
+
+## 🎨 Fitur Peta
+
+### Basemap Toggle
+Klik tombol glass di kanan-bawah peta untuk cycle 3 basemap:
+1. **🗺️ Peta** — OpenStreetMap (default)
+2. **🛰️ Satelit** — Google Satellite
+3. **🛣️ Jalan** — Google Road
+
+### Visualisasi Wilayah
+- Setiap level (kecamatan, nagari, korong) ditampilkan sebagai shape GeoJSON dengan warna berbeda
+- Hover pada shape menampilkan tooltip nama wilayah
+- Klik shape untuk drill-down ke level berikutnya
+- Peta otomatis zoom ke wilayah yang dipilih
+
+### Optimasi Performa
+- Pre-indexing GeoJSON features untuk lookup O(1) saat filter
+- Bounds caching untuk menghindari parsing geometri berulang
+- Clustering marker otomatis jika jumlah > 100
 
 ---
 

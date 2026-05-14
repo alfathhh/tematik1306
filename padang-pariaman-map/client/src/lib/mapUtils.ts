@@ -1,19 +1,10 @@
 import L from 'leaflet';
 import { KategoriInfra } from '../types';
+import { createCustomMarker } from './gis/createCustomMarker';
 
 // Buat custom DivIcon untuk marker infrastruktur berdasarkan kategori
 export function createMarkerIcon(kategori: KategoriInfra): L.DivIcon {
-  return L.divIcon({
-    className: '',
-    html: `
-      <div class="custom-marker" style="background-color: ${kategori.color};">
-        <span class="custom-marker-inner">${kategori.icon}</span>
-      </div>
-    `,
-    iconSize: [32, 32],
-    iconAnchor: [16, 32],
-    popupAnchor: [0, -32],
-  });
+  return createCustomMarker({ categoryValue: kategori.value, kategori });
 }
 
 // Hitung bounding box dari GeoJSON FeatureCollection

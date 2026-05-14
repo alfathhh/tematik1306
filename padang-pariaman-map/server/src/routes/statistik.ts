@@ -8,18 +8,125 @@ import { MAX_IMPORT_ROWS } from '../constants';
 const router = Router();
 const prisma = new PrismaClient();
 
+type StatistikRow = {
+  id: number;
+  idkab: string;
+  idkec: string | null;
+  iddesa: string | null;
+  idsls: string | null;
+  indikator: string;
+  nilai: number;
+  satuan: string | null;
+  tahun: number;
+  createdAt: Date;
+};
+
+function getLevelStatistik(row: Pick<StatistikRow, 'idsls' | 'iddesa' | 'idkec'>) {
+  if (row.idsls) return 3;
+  if (row.iddesa) return 2;
+  if (row.idkec) return 1;
+  return 0;
+}
+
+function getModeAgregasi(indikator: string, satuan?: string | null) {
+  const teks = `${indikator} ${satuan ?? ''}`.toLowerCase();
+  const isRerata = ['ipm', 'indeks', 'persen', 'persentase', 'rasio', 'tingkat', '%'].some((kata) =>
+    teks.includes(kata),
+  );
+
+  return isRerata ? 'avg' : 'sum';
+}
+
+function agregasiStatistik(rows: StatistikRow[]) {
+  const grouped = new Map<string, StatistikRow[]>();
+
+  for (const row of rows) {
+    const key = `${row.indikator}__${row.tahun}__${row.satuan ?? ''}`;
+    const group = grouped.get(key);
+    if (group) group.push(row);
+    else grouped.set(key, [row]);
+  }
+
+  return Array.from(grouped.values()).map((group) => {
+    const maxLevel = Math.max(...group.map(getLevelStatistik));
+    const rowsTerdalam = group.filter((row) => getLevelStatistik(row) === maxLevel);
+    const contoh = rowsTerdalam[0];
+    const mode = getModeAgregasi(contoh.indikator, contoh.satuan);
+    const total = rowsTerdalam.reduce((sum, row) => sum + row.nilai, 0);
+    const nilai = mode === 'avg' ? total / rowsTerdalam.length : total;
+
+    return {
+      id: 0,
+      idkab: contoh.idkab,
+      idkec: contoh.idkec,
+      iddesa: contoh.iddesa,
+      idsls: contoh.idsls,
+      indikator: contoh.indikator,
+      nilai,
+      satuan: contoh.satuan,
+      tahun: contoh.tahun,
+      createdAt: contoh.createdAt,
+      agregat: true,
+      metodeAgregasi: mode,
+      jumlahSumber: rowsTerdalam.length,
+      levelSumber: maxLevel === 3 ? 'korong' : maxLevel === 2 ? 'nagari' : maxLevel === 1 ? 'kecamatan' : 'kabupaten',
+    };
+  });
+}
+
+// GET /api/statistik/indikator
+router.get('/indikator', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await prisma.statistik.findMany({
+      distinct: ['indikator'],
+      select: { indikator: true, satuan: true },
+      orderBy: { indikator: 'asc' },
+    });
+
+    res.json({
+      data: data.map((item) => ({
+        value: item.indikator,
+        label: item.indikator,
+        satuan: item.satuan,
+      })),
+    });
+  } catch (error) {
+    console.error('Error GET indikator statistik:', error);
+    res.status(500).json({ error: 'Terjadi kesalahan server' });
+  }
+});
+
 // GET /api/statistik
 router.get('/', async (req: Request, res: Response): Promise<void> => {
-  const { idkab, idkec, iddesa, idsls, tahun, indikator, page, limit } = req.query;
+  const { idkab, idkec, iddesa, idsls, tahun, indikator, page, limit, aggregate } = req.query;
 
   try {
     const where: Record<string, unknown> = {};
     if (idkab)    where.idkab    = String(idkab);
+    if (tahun)    where.tahun    = parseInt(String(tahun));
+    if (indikator) where.indikator = { contains: String(indikator), mode: 'insensitive' };
+
+    if (aggregate === 'true') {
+      if (idsls) {
+        where.idsls = String(idsls);
+      } else if (iddesa) {
+        where.iddesa = String(iddesa);
+      } else if (idkec) {
+        where.idkec = String(idkec);
+      }
+
+      const rows = await prisma.statistik.findMany({
+        where,
+        orderBy: [{ tahun: 'desc' }, { indikator: 'asc' }],
+      });
+      const data = agregasiStatistik(rows as StatistikRow[]);
+      res.json({ data, total: data.length, aggregate: true });
+      return;
+    }
+
     if (idkec)    where.idkec    = String(idkec);
     if (iddesa)   where.iddesa   = String(iddesa);
     if (idsls)    where.idsls    = String(idsls);
-    if (tahun)    where.tahun    = parseInt(String(tahun));
-    if (indikator) where.indikator = { contains: String(indikator), mode: 'insensitive' };
 
     const pageNum  = page  ? parseInt(String(page))  : 1;
     const limitNum = limit ? parseInt(String(limit)) : undefined;

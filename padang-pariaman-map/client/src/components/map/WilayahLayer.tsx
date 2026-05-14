@@ -13,6 +13,8 @@ const STYLE_NAGARI    = { color: '#F59E0B', weight: 1.5, fillOpacity: 0.08 };
 const STYLE_KORONG    = { color: '#EF4444', weight: 1,   fillOpacity: 0.10 };
 const STYLE_KORONG_SELECTED = { color: '#1D4ED8', weight: 3, fillOpacity: 0.25 };
 const STYLE_HOVER     = { weight: 3, fillOpacity: 0.22 };
+const FIT_PADDING: L.PointTuple = [32, 32];
+const SELECTED_PADDING: L.PointTuple = [56, 56];
 
 /* ─────────── Pre-indexing: dibangun sekali di module load ───────────
  * Index by parent code untuk lookup O(1) saat klik filter,
@@ -60,10 +62,26 @@ function getBoundsCached(fc: GeoJSON.FeatureCollection): L.LatLngBounds | null {
   return bounds;
 }
 
+function smoothFitBounds(map: L.Map, bounds: L.LatLngBounds, padding: L.PointTuple, smooth: boolean) {
+  if (!smooth) {
+    map.fitBounds(bounds, { padding, animate: false });
+    return;
+  }
+
+  map.flyToBounds(bounds, {
+    padding,
+    animate: true,
+    duration: 0.75,
+    easeLinearity: 0.2,
+  });
+}
+
 export default function WilayahLayer() {
   const map = useMap();
   const { idkec, iddesa, idsls, setIdkec, setIddesa, setIdsls } = useFilterStore();
   const geoJsonRef = useRef<L.GeoJSON | null>(null);
+  const hasMountedRef = useRef(false);
+  const isClickNavigationRef = useRef(false);
 
   const { displayData, baseStyle, level } = useMemo(() => {
     if (iddesa) {
@@ -82,7 +100,11 @@ export default function WilayahLayer() {
   // fitBounds saat level/wilayah berubah — animate:false agar tidak ada delay animasi
   useEffect(() => {
     const bounds = getBoundsCached(displayData);
-    if (bounds) map.fitBounds(bounds, { padding: [30, 30], animate: false });
+    if (!bounds) return;
+
+    smoothFitBounds(map, bounds, FIT_PADDING, hasMountedRef.current || isClickNavigationRef.current);
+    hasMountedRef.current = true;
+    isClickNavigationRef.current = false;
   }, [displayData, map]);
 
   // Highlight korong terpilih tanpa re-render seluruh layer
@@ -108,7 +130,7 @@ export default function WilayahLayer() {
       if (selectedFeature) {
         const singleFc: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [selectedFeature] };
         const bounds = getBoundsCached(singleFc);
-        if (bounds) map.fitBounds(bounds, { padding: [50, 50], animate: false });
+        if (bounds) smoothFitBounds(map, bounds, SELECTED_PADDING, true);
       }
     }
   }, [idsls, level, displayData, map]);
@@ -146,6 +168,7 @@ export default function WilayahLayer() {
           }
         },
         click() {
+          isClickNavigationRef.current = true;
           if (level === 'kecamatan' && props.idkec)    setIdkec(String(props.idkec));
           else if (level === 'nagari' && props.iddesa) setIddesa(String(props.iddesa));
           else if (level === 'korong' && props.idsls)  setIdsls(String(props.idsls));

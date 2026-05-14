@@ -4,6 +4,8 @@ import { KategoriInfra } from '../../types';
 import { useFilterStore } from '../../store/filterStore';
 import { Skeleton } from '../ui/Skeleton';
 import { cn } from '../../lib/cn';
+import { getCategoryColor, getCategoryIcon } from '../../lib/gis/categoryConfig';
+import { Map } from 'lucide-react';
 
 /**
  * FilterKategori — daftar chip kategori infrastruktur.
@@ -66,7 +68,7 @@ export default function FilterKategori() {
             : 'text-neutral-600 hover:bg-neutral-50 border border-transparent',
         )}
       >
-        <span className="text-base" aria-hidden="true">🗺️</span>
+        <Map size={16} aria-hidden="true" />
         <span className="flex-1 text-left text-xs">Tampilkan Semua</span>
       </button>
 
@@ -76,8 +78,8 @@ export default function FilterKategori() {
       {/* Daftar kategori */}
       {kategoriList.map(kat => {
         const aktif = kategoriAktif.includes(kat.value);
-        // Gunakan kat.color (bukan kat.warna — field di KategoriInfra adalah 'color')
-        const warnaHex = kat.color;
+        const warnaHex = getCategoryColor(kat.value, kat);
+        const Icon = getCategoryIcon(kat.value, kat);
 
         return (
           <label
@@ -126,10 +128,12 @@ export default function FilterKategori() {
               )}
             </span>
 
-            {/* Ikon emoji */}
-            <span className="text-base leading-none flex-shrink-0" aria-hidden="true">
-              {kat.icon}
-            </span>
+            <Icon
+              size={17}
+              className="shrink-0"
+              style={{ color: warnaHex }}
+              aria-hidden="true"
+            />
 
             {/* Label */}
             <span className="text-xs font-medium text-neutral-700 flex-1">

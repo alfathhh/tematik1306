@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Tags } from 'lucide-react';
 import AdminLayout from './AdminLayout';
 import api from '../../lib/api';
 import { KategoriInfra, KategoriFormData } from '../../types';
@@ -8,6 +9,13 @@ import { Modal } from '../../components/ui/Modal';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { Badge } from '../../components/ui/Badge';
 import { useToast } from '../../components/ui/Toast';
+import {
+  CATEGORY_ICON_OPTIONS,
+  getCategoryColor,
+  getCategoryIcon,
+  getCategoryIconValue,
+} from '../../lib/gis/categoryConfig';
+import { cn } from '../../lib/cn';
 
 const WARNA_PRESETS = [
   '#3B82F6', '#10B981', '#F59E0B', '#EF4444',
@@ -16,7 +24,7 @@ const WARNA_PRESETS = [
 ];
 
 const EMPTY_FORM: KategoriFormData = {
-  value: '', label: '', icon: '', color: WARNA_PRESETS[0], urutan: '',
+  value: '', label: '', icon: CATEGORY_ICON_OPTIONS[0].value, color: WARNA_PRESETS[0], urutan: '',
 };
 
 export default function AdminKategori() {
@@ -47,7 +55,8 @@ export default function AdminKategori() {
     setForm(EMPTY_FORM); setEditId(null); setFormError(''); setShowForm(true);
   };
   const openEdit = (k: KategoriInfra) => {
-    setForm({ value: k.value, label: k.label, icon: k.icon ?? '', color: k.color, urutan: k.urutan });
+    const iconValue = getCategoryIconValue(k.value, k);
+    setForm({ value: k.value, label: k.label, icon: iconValue, color: k.color, urutan: k.urutan });
     setEditId(k.id); setFormError(''); setShowForm(true);
   };
 
@@ -86,9 +95,9 @@ export default function AdminKategori() {
 
   return (
     <AdminLayout title="Manajemen Kategori">
-      <div className="space-y-4 max-w-3xl">
+      <div className="admin-page">
         {/* Toolbar */}
-        <div className="flex items-center justify-end">
+        <div className="admin-toolbar-end">
           <Button
             onClick={openAdd}
             leftIcon={
@@ -102,7 +111,7 @@ export default function AdminKategori() {
         </div>
 
         {/* Tabel */}
-        <div className="bg-white rounded-2xl shadow-soft border border-neutral-200/60 overflow-hidden">
+        <div className="admin-panel">
           <div className="px-4 py-2.5 border-b border-neutral-100 text-xs text-neutral-500">
             {list.length} kategori
           </div>
@@ -113,7 +122,7 @@ export default function AdminKategori() {
             </div>
           ) : list.length === 0 ? (
             <div className="py-16 text-center">
-              <span className="text-4xl block mb-3" aria-hidden="true">🏷️</span>
+              <Tags size={40} className="mx-auto mb-3 text-neutral-300" aria-hidden="true" />
               <p className="text-sm font-medium text-neutral-600">Belum ada kategori</p>
               <p className="text-xs text-neutral-400 mt-1">Klik "Tambah Kategori" untuk memulai</p>
             </div>
@@ -130,16 +139,20 @@ export default function AdminKategori() {
                   </tr>
                 </thead>
                 <tbody>
-                  {list.map((k, idx) => (
+                  {list.map((k, idx) => {
+                    const Icon = getCategoryIcon(k.value, k);
+                    const warnaHex = getCategoryColor(k.value, k);
+
+                    return (
                     <tr key={k.id}>
                       <td className="text-neutral-400 text-xs">{idx + 1}</td>
                       <td>
                         <div className="flex items-center gap-2.5">
                           <div
-                            className="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center text-sm"
-                            style={{ backgroundColor: k.color + '20', border: `1.5px solid ${k.color}60` }}
+                            className="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center"
+                            style={{ backgroundColor: `${warnaHex}20`, border: `1.5px solid ${warnaHex}60` }}
                           >
-                            {k.icon || <span style={{ color: k.color }}>●</span>}
+                            <Icon size={16} style={{ color: warnaHex }} aria-hidden="true" />
                           </div>
                           <span className="font-medium text-neutral-900">{k.label}</span>
                         </div>
@@ -172,7 +185,8 @@ export default function AdminKategori() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -207,12 +221,33 @@ export default function AdminKategori() {
               onChange={e => setForm(f => ({ ...f, value: e.target.value.toLowerCase().replace(/\s+/g, '-') }))}
               placeholder="contoh: jalan-raya"
             />
-            <Input
-              label="Icon (emoji)"
-              value={form.icon}
-              onChange={e => setForm(f => ({ ...f, icon: e.target.value }))}
-              placeholder="🏗️"
-            />
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-neutral-700">Icon</label>
+              <div className="grid grid-cols-6 gap-2">
+                {CATEGORY_ICON_OPTIONS.map((option) => {
+                  const Icon = option.icon;
+                  const selected = form.icon === option.value;
+
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, icon: option.value }))}
+                      className={cn(
+                        'flex h-10 items-center justify-center rounded-xl border transition-all',
+                        selected
+                          ? 'border-primary-500 bg-primary-50 text-primary-700 shadow-focus'
+                          : 'border-neutral-200 bg-white text-neutral-500 hover:border-primary-200 hover:bg-primary-50/50',
+                      )}
+                      title={option.label}
+                      aria-label={`Pilih icon ${option.label}`}
+                    >
+                      <Icon size={18} aria-hidden="true" />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <div className="space-y-2">
               <label className="block text-xs font-medium text-neutral-700">Warna</label>
               <div className="flex flex-wrap gap-2">

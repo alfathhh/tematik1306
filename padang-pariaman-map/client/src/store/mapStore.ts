@@ -20,7 +20,7 @@ interface MapState {
 export const useMapStore = create<MapState>((set) => ({
   center: MAP_CENTER,
   zoom: MAP_DEFAULT_ZOOM,
-  basemap: 'osm',
+  basemap: 'google-road',
   mapInstance: null,
 
   setCenter: (center) => set({ center }),

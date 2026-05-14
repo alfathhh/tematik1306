@@ -3,7 +3,7 @@
 
 | Field | Nilai |
 |---|---|
-| **Versi Dokumen** | 1.0 |
+| **Versi Dokumen** | 2.0 |
 | **Tanggal** | 2026-05-13 |
 | **Status** | Active |
 | **Repo** | `alfathhh/tematik1306` |
@@ -37,9 +37,10 @@ Produk terdiri dari dua sisi:
 | Fitur | Deskripsi |
 |---|---|
 | **Peta Interaktif** | Leaflet.js, zoom 9–18, center Padang Pariaman (`-0.5397, 100.1187`) |
-| **Toggle Basemap** | OSM ↔ Google Maps (satelit), tombol glass melayang kanan-bawah peta |
+| **Toggle Basemap** | 3 pilihan: OSM (🗺️ Peta) → Google Satellite (🛰️ Satelit) → Google Road (🛣️ Jalan) |
 | **Filter Kategori** | Chip per kategori infrastruktur; warna & ikon dari API; toggle aktif/nonaktif |
-| **Filter Wilayah** | Cascade dropdown: Kabupaten → Kecamatan → Nagari → Korong dengan breadcrumb aktif |
+| **Filter Wilayah Cascade** | Dropdown: Kabupaten → Kecamatan → Nagari → Korong dengan breadcrumb aktif |
+| **Visualisasi Wilayah** | Shape GeoJSON per level dengan warna berbeda; hover tooltip nama; klik drill-down |
 | **Pencarian** | Debounce 300 ms, flyTo marker di peta, dropdown hasil dengan badge kategori |
 | **Panel Statistik** | Card angka besar, Bar Chart (indikator), Donut Chart (distribusi kategori); update real-time sesuai filter wilayah |
 | **Popup Infrastruktur** | Foto 16:9, badge kategori, nama bold, alamat dengan ikon 📍 |
@@ -137,34 +138,34 @@ Browser (User/Admin)
 ```
 padang-pariaman-map/
 ├── client/                          # React + Vite + Tailwind
-│   ├── public/geojson/              # GeoJSON batas wilayah (statis)
-│   │   ├── kabupaten.geojson
-│   │   ├── kecamatan.geojson
-│   │   ├── nagari.geojson
-│   │   └── korong.geojson
-│   └── src/
-│       ├── components/
-│       │   ├── ui/                  # Primitif: Button, Input, Select, Card, Badge, Modal, Toast, Skeleton
-│       │   ├── map/                 # MapContainer, MarkerLayer, WilayahLayer, BasemapToggle, InfraPopup
-│       │   ├── filter/              # FilterKategori, FilterWilayah
-│       │   ├── search/              # SearchBar
-│       │   ├── statistik/           # StatistikPanel, StatistikCard, BarChart, DonutChart
-│       │   ├── layout/              # PublicHeader
-│       │   └── admin/               # FotoUpload
-│       ├── pages/
-│       │   ├── ClientMap.tsx        # Halaman peta publik
-│       │   ├── NotFound.tsx         # 404
-│       │   └── admin/
-│       │       ├── Login.tsx
-│       │       ├── AdminLayout.tsx
-│       │       ├── Dashboard.tsx
-│       │       ├── Infrastruktur.tsx
-│       │       ├── Statistik.tsx
-│       │       └── Kategori.tsx
-│       ├── store/                   # Zustand: authStore, filterStore, mapStore
-│       ├── hooks/                   # useDebounce, useInfrastruktur, useStatistik, useWilayah
-│       ├── lib/                     # api.ts (Axios), cn.ts (className util), mapUtils.ts
-│       └── types/index.ts           # TypeScript interfaces
+│   ├── src/
+│   │   ├── assets/geojson/          # GeoJSON batas wilayah (statis)
+│   │   │   ├── kabupaten.geojson
+│   │   │   ├── kecamatan.geojson
+│   │   │   ├── nagari.geojson
+│   │   │   └── korong.geojson
+│   │   ├── components/
+│   │   │   ├── ui/                  # Primitif: Button, Input, Select, Card, Badge, Modal, Toast, Skeleton
+│   │   │   ├── map/                 # MapContainer, MarkerLayer, WilayahLayer, BasemapToggle, InfraPopup
+│   │   │   ├── filter/              # FilterKategori, FilterWilayah
+│   │   │   ├── search/              # SearchBar
+│   │   │   ├── statistik/           # StatistikPanel, StatistikCard, BarChart, DonutChart
+│   │   │   ├── layout/              # PublicHeader
+│   │   │   └── admin/               # FotoUpload
+│   │   ├── pages/
+│   │   │   ├── ClientMap.tsx        # Halaman peta publik
+│   │   │   ├── NotFound.tsx         # 404
+│   │   │   └── admin/
+│   │   │       ├── Login.tsx
+│   │   │       ├── AdminLayout.tsx
+│   │   │       ├── Dashboard.tsx
+│   │   │       ├── Infrastruktur.tsx
+│   │   │       ├── Statistik.tsx
+│   │   │       └── Kategori.tsx
+│   │   ├── store/                   # Zustand: authStore, filterStore, mapStore
+│   │   ├── hooks/                   # useDebounce, useInfrastruktur, useStatistik, useWilayah
+│   │   ├── lib/                     # api.ts (Axios), cn.ts (className util), mapUtils.ts
+│   │   └── types/index.ts           # TypeScript interfaces
 │
 └── server/                          # Express + Prisma
     ├── prisma/
@@ -209,19 +210,19 @@ padang-pariaman-map/
 | `fotoUrl` | TEXT | URL atau path `/uploads/images/...` |
 | `lat` | FLOAT | Latitude |
 | `lng` | FLOAT | Longitude |
-| `kdkab` | CHAR(4) | Selalu `1305` |
-| `kdkec` | CHAR(6) | Kode kecamatan |
-| `kddesa` | CHAR(10) | Kode nagari |
-| `kdsls` | CHAR(12) | Kode korong (opsional) |
+| `idkab` | CHAR(4) | Selalu `1306` |
+| `idkec` | CHAR(6) | Kode kecamatan |
+| `iddesa` | CHAR(10) | Kode nagari |
+| `idsls` | CHAR(12) | Kode korong (opsional) |
 
 ### Tabel `statistik`
 | Kolom | Tipe | Keterangan |
 |---|---|---|
 | `id` | INT PK | |
-| `kdkab` | CHAR(4) | |
-| `kdkec` | CHAR(6) | Opsional |
-| `kddesa` | CHAR(10) | Opsional |
-| `kdsls` | CHAR(12) | Opsional |
+| `idkab` | CHAR(4) | |
+| `idkec` | CHAR(6) | Opsional |
+| `iddesa` | CHAR(10) | Opsional |
+| `idsls` | CHAR(12) | Opsional |
 | `indikator` | VARCHAR(255) | "Jumlah Penduduk" |
 | `nilai` | FLOAT | Angka |
 | `satuan` | VARCHAR(50) | "jiwa", "km²" |
@@ -235,14 +236,14 @@ Hierarki kode wilayah Kabupaten Padang Pariaman:
 
 | Level | Field | Panjang | Contoh | Aturan |
 |---|---|---|---|---|
-| Kabupaten | `kdkab` | 4 digit | `1305` | Selalu tetap |
-| Kecamatan | `kdkec` | 6 digit | `130501` | Dimulai dengan `1305` |
-| Nagari | `kddesa` | 10 digit | `1305010001` | Dimulai dengan `kdkec` |
-| Korong | `kdsls` | 12 digit | `130501000101` | Dimulai dengan `kddesa` |
+| Kabupaten | `idkab` | 4 digit | `1306` | Selalu tetap |
+| Kecamatan | `idkec` | 6 digit | `130601` | Dimulai dengan `1306` |
+| Nagari | `iddesa` | 10 digit | `1306010001` | Dimulai dengan `idkec` |
+| Korong | `idsls` | 12 digit | `130601000101` | Dimulai dengan `iddesa` |
 
 **Filter relasional tanpa JOIN:**
 ```sql
-WHERE kdsls LIKE '130501' || '%'
+WHERE idsls LIKE '130601' || '%'
 ```
 
 ---
@@ -254,11 +255,11 @@ WHERE kdsls LIKE '130501' || '%'
 |---|---|---|
 | `POST` | `/api/auth/login` | Login admin, dapat JWT |
 | `GET` | `/api/kategori` | Semua kategori infrastruktur |
-| `GET` | `/api/infrastruktur` | List infrastruktur (query: `search`, `kategori`, `kdkec`, `kddesa`, `kdsls`, `page`, `limit`) |
-| `GET` | `/api/statistik` | Data statistik (query: `kdkab`, `kdkec`, `kddesa`, `tahun`, `page`, `limit`) |
+| `GET` | `/api/infrastruktur` | List infrastruktur (query: `search`, `kategori`, `idkec`, `iddesa`, `idsls`, `page`, `limit`) |
+| `GET` | `/api/statistik` | Data statistik (query: `idkab`, `idkec`, `iddesa`, `tahun`, `page`, `limit`) |
 | `GET` | `/api/wilayah/kecamatan` | List kecamatan |
-| `GET` | `/api/wilayah/nagari` | List nagari (query: `kdkec`) |
-| `GET` | `/api/wilayah/korong` | List korong (query: `kddesa`) |
+| `GET` | `/api/wilayah/nagari` | List nagari (query: `idkec`) |
+| `GET` | `/api/wilayah/korong` | List korong (query: `iddesa`) |
 
 ### Protected (butuh JWT `Authorization: Bearer <token>`)
 | Method | Path | Deskripsi |
@@ -331,12 +332,12 @@ Tersedia di `src/components/ui/`:
 | Store | State | Keterangan |
 |---|---|---|
 | `authStore` | `token`, `user`, `isAuthenticated` | Login/logout admin |
-| `filterStore` | `kategoriAktif`, `kdkab`, `kdkec`, `kddesa`, `kdsls` | Filter peta publik |
-| `mapStore` | `basemap`, `mapInstance` | Basemap aktif dan referensi Leaflet map |
+| `filterStore` | `kategoriAktif`, `idkab`, `idkec`, `iddesa`, `idsls` | Filter peta publik |
+| `mapStore` | `basemap`, `mapInstance` | Basemap aktif (osm/google-satellite/google-road) dan referensi Leaflet map |
 
 **Aturan filter cascade:**
-- Saat `kdkec` berubah → reset `kddesa` dan `kdsls`
-- Saat `kddesa` berubah → reset `kdsls`
+- Saat `idkec` berubah → reset `iddesa` dan `idsls`
+- Saat `iddesa` berubah → reset `idsls`
 
 ---
 
@@ -375,6 +376,8 @@ Tersedia di `src/components/ui/`:
 | Foto infrastruktur | `loading="lazy"` + `width`/`height` attribute |
 | Clustering marker | Aktif jika marker > 100 |
 | Leaflet resize | `invalidateSize()` via `ResizeObserver` saat panel toggle |
+| GeoJSON filtering | Pre-indexed Map lookup O(1) |
+| Bounds calculation | Cached dengan WeakMap |
 
 ---
 
@@ -408,18 +411,18 @@ VITE_API_URL=http://localhost:3000
 | `foto_url` | ❌ | URL foto eksternal |
 | `lat` | ✅ | Antara -4 dan 2 (Sumatera Barat) |
 | `lng` | ✅ | Antara 99 dan 105 |
-| `kdkab` | ✅ | Harus `1305` |
-| `kdkec` | ✅ | 6 digit |
-| `kddesa` | ✅ | 10 digit |
-| `kdsls` | ❌ | 12 digit |
+| `idkab` | ✅ | Harus `1306` |
+| `idkec` | ✅ | 6 digit |
+| `iddesa` | ✅ | 10 digit |
+| `idsls` | ❌ | 12 digit |
 
 ### Statistik
 | Header | Wajib | Keterangan |
 |---|---|---|
-| `kdkab` | ✅ | |
-| `kdkec` | ❌ | |
-| `kddesa` | ❌ | |
-| `kdsls` | ❌ | |
+| `idkab` | ✅ | |
+| `idkec` | ❌ | |
+| `iddesa` | ❌ | |
+| `idsls` | ❌ | |
 | `indikator` | ✅ | "Jumlah Penduduk" |
 | `nilai` | ✅ | Angka |
 | `satuan` | ❌ | "jiwa", "unit" |
@@ -470,7 +473,30 @@ INSERT INTO kategori_infra (value, label, icon, color, urutan) VALUES
 
 ---
 
-## 19. Roadmap (Backlog)
+## 19. Fitur Peta Terbaru
+
+### Basemap Toggle (3 Pilihan)
+- **🗺️ Peta** — OpenStreetMap (default)
+- **🛰️ Satelit** — Google Satellite
+- **🛣️ Jalan** — Google Road
+
+Klik tombol glass di kanan-bawah peta untuk cycle antar basemap.
+
+### Visualisasi Wilayah GeoJSON
+- Shape per level (kecamatan, nagari, korong) dengan warna berbeda
+- Hover menampilkan tooltip nama wilayah
+- Klik untuk drill-down ke level berikutnya
+- Peta otomatis zoom ke wilayah yang dipilih
+- Animasi zoom disabled untuk responsivitas lebih baik
+
+### Optimasi Performa
+- **Pre-indexing:** GeoJSON features di-index dalam Map saat module load → lookup O(1)
+- **Bounds caching:** Bounds geometri disimpan di WeakMap → tidak parsing ulang
+- **Animate false:** fitBounds tanpa animasi → terasa lebih responsif
+
+---
+
+## 20. Roadmap (Backlog)
 
 | Prioritas | Fitur |
 |---|---|
@@ -484,7 +510,7 @@ INSERT INTO kategori_infra (value, label, icon, color, urutan) VALUES
 
 ---
 
-## 20. Dokumen Terkait
+## 21. Dokumen Terkait
 
 | Dokumen | Lokasi | Deskripsi |
 |---|---|---|
@@ -494,7 +520,6 @@ INSERT INTO kategori_infra (value, label, icon, color, urutan) VALUES
 | `PRD-UI-REFRESH.md` | `tematik1306/PRD-UI-REFRESH.md` | PRD peremajaan UI (Fase 1–4) |
 | `ISSUE.md` | `tematik1306/ISSUE.md` | Log bug yang ditemukan & fix-nya |
 | `PROMPT.md` | `tematik1306/PROMPT.md` | Prompt teknis awal pembangunan |
-| PR #5 | GitHub | Implementasi UI refresh |
 
 ---
 

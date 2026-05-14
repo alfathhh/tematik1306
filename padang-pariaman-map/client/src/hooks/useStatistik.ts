@@ -6,10 +6,13 @@ interface UseStatistikOptions {
   idkab?: string;
   idkec?: string;
   iddesa?: string;
+  idsls?: string;
+  indikator?: string;
+  aggregate?: boolean;
 }
 
 export function useStatistik(options: UseStatistikOptions = {}) {
-  const { idkab, idkec, iddesa } = options;
+  const { idkab, idkec, iddesa, idsls, indikator, aggregate } = options;
 
   const [data, setData]       = useState<Statistik[]>([]);
   const [loading, setLoading] = useState(false);
@@ -23,15 +26,24 @@ export function useStatistik(options: UseStatistikOptions = {}) {
     if (idkab)  params.idkab  = idkab;
     if (idkec)  params.idkec  = idkec;
     if (iddesa) params.iddesa = iddesa;
+    if (idsls)  params.idsls  = idsls;
+    if (indikator) params.indikator = indikator;
+    if (aggregate) params.aggregate = 'true';
 
-    api.get('/statistik', { params })
-      .then(res => setData(res.data.data || res.data))
-      .catch(err => {
+    async function fetchStatistik() {
+      try {
+        const res = await api.get('/statistik', { params });
+        setData(res.data.data || res.data);
+      } catch (err) {
         setError('Gagal memuat data statistik');
         console.error('useStatistik error:', err);
-      })
-      .finally(() => setLoading(false));
-  }, [idkab, idkec, iddesa]);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchStatistik();
+  }, [idkab, idkec, iddesa, idsls, indikator, aggregate]);
 
   return { data, loading, error };
 }

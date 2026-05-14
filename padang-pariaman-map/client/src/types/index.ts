@@ -4,7 +4,7 @@ export interface KategoriInfra {
   id: number;
   value: string;   // slug: "restoran", "rumah_ibadah", dll
   label: string;   // label tampil: "Restoran", "Rumah Ibadah", dll
-  icon: string;    // emoji: "🍽️", "🕌", dll
+  icon: string;    // nama icon lucide, mis. "utensils", "landmark"
   color: string;   // hex color: "#FF5733"
   urutan: number;
 }
@@ -36,6 +36,10 @@ export interface Statistik {
   satuan?: string;
   tahun: number;
   createdAt: string;
+  agregat?: boolean;
+  metodeAgregasi?: 'sum' | 'avg';
+  jumlahSumber?: number;
+  levelSumber?: 'kabupaten' | 'kecamatan' | 'nagari' | 'korong';
 }
 
 export interface WilayahOption {

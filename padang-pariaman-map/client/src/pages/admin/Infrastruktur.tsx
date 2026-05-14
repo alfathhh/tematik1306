@@ -2,19 +2,26 @@ import React, { useState, useEffect, useCallback } from 'react';
 import AdminLayout from './AdminLayout';
 import api from '../../lib/api';
 import { Infrastruktur, KategoriInfra, InfrastrukturFormData } from '../../types';
-import { ADMIN_PAGE_SIZE, IDKAB_PADANG_PARIAMAN } from '../../constants';
+import {
+  ADMIN_PAGE_SIZE,
+  BASEMAP_GOOGLE_ATTRIBUTION,
+  BASEMAP_GOOGLE_ROAD,
+  IDKAB_PADANG_PARIAMAN,
+  MAP_CENTER,
+} from '../../constants';
 import { MapContainer as LeafletMap, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
+import { MapPin } from 'lucide-react';
 import { useKecamatanGeoJSON, useNagariGeoJSON, useKorongGeoJSON } from '../../hooks/useWilayahGeoJSON';
 import { FotoUpload } from '../../components/admin/FotoUpload';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
-import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { useToast } from '../../components/ui/Toast';
 import { cn } from '../../lib/cn';
+import { CategoryBadge } from '../../components/admin/CategoryBadge';
 
 /**
  * AdminInfrastruktur — halaman CRUD data infrastruktur.
@@ -40,15 +47,19 @@ const EMPTY_FORM: InfrastrukturFormData = {
 
 /** MapPicker — mini-map untuk pilih koordinat dengan klik. */
 function MapPicker({ lat, lng, onChange }: { lat: number | ''; lng: number | ''; onChange: (lat: number, lng: number) => void }) {
-  const center: [number, number] = (lat !== '' && lng !== '') ? [lat, lng] : [-0.5397, 100.1187];
+  const center: [number, number] = (lat !== '' && lng !== '') ? [lat, lng] : MAP_CENTER;
   function ClickHandler() {
     useMapEvents({ click(e) { onChange(e.latlng.lat, e.latlng.lng); } });
     return null;
   }
   return (
     <div className="h-48 rounded-xl overflow-hidden border border-neutral-200">
-      <LeafletMap center={center} zoom={12} style={{ height: '100%', width: '100%' }} key={`${lat}-${lng}`}>
-        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+      <LeafletMap center={center} zoom={12} style={{ height: '100%', width: '100%' }}>
+        <TileLayer
+          url={BASEMAP_GOOGLE_ROAD}
+          attribution={BASEMAP_GOOGLE_ATTRIBUTION}
+          maxZoom={20}
+        />
         <ClickHandler />
         {lat !== '' && lng !== '' && <Marker position={[lat, lng]} />}
       </LeafletMap>
@@ -173,9 +184,9 @@ export default function AdminInfrastruktur() {
 
   return (
     <AdminLayout title="Manajemen Infrastruktur">
-      <div className="space-y-4 max-w-7xl">
+      <div className="admin-page">
         {/* Toolbar */}
-        <div className="flex flex-wrap gap-3 items-center justify-between">
+        <div className="admin-toolbar">
           <div className="flex gap-2 flex-wrap items-center">
             <label className={cn('cursor-pointer text-sm px-3 py-2 rounded-xl font-medium flex items-center gap-1.5 transition-colors', importing ? 'opacity-60 pointer-events-none bg-neutral-100 text-neutral-500' : 'bg-success-50 hover:bg-success-500/10 text-success-600 border border-success-500/20')}>
               {importing ? <><span className="w-3.5 h-3.5 border-2 border-success-500 border-t-transparent rounded-full animate-spin" /> Importing...</> : <>📥 Import Excel</>}
@@ -189,7 +200,7 @@ export default function AdminInfrastruktur() {
               leftIcon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2"/><path d="M21 21l-4.35-4.35" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>} />
             <Select value={filterKat} onChange={e => { setFilterKat(e.target.value); setPage(1); }} containerClassName="w-40">
               <option value="">Semua Kategori</option>
-              {kategoriList.map(k => <option key={k.value} value={k.value}>{k.icon} {k.label}</option>)}
+              {kategoriList.map(k => <option key={k.value} value={k.value}>{k.label}</option>)}
             </Select>
             <Button onClick={openAdd} leftIcon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>}>Tambah</Button>
           </div>
@@ -204,7 +215,7 @@ export default function AdminInfrastruktur() {
         )}
 
         {/* Tabel */}
-        <div className="bg-white rounded-2xl shadow-soft border border-neutral-200/60 overflow-hidden">
+        <div className="admin-panel">
           <div className="px-4 py-2.5 border-b border-neutral-100 text-xs text-neutral-500 flex justify-between">
             <span>{total.toLocaleString('id-ID')} data</span>
             <span>Hal. {page}/{totalPages || 1}</span>
@@ -213,7 +224,7 @@ export default function AdminInfrastruktur() {
             <div className="p-6 space-y-3">{[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
           ) : list.length === 0 ? (
             <div className="py-16 text-center">
-              <span className="text-4xl block mb-3" aria-hidden="true">🏗️</span>
+              <MapPin size={40} className="mx-auto mb-3 text-neutral-300" aria-hidden="true" />
               <p className="text-sm font-medium text-neutral-600">Belum ada data infrastruktur</p>
               <p className="text-xs text-neutral-400 mt-1">Klik "Tambah" untuk menambahkan data pertama</p>
             </div>
@@ -240,7 +251,7 @@ export default function AdminInfrastruktur() {
                           <span className="truncate block">{item.nama}</span>
                         </td>
                         <td>
-                          {k ? <Badge color={k.color} icon={<span>{k.icon}</span>}>{k.label}</Badge>
+                          {k ? <CategoryBadge categoryValue={item.kategori} kategori={k} />
                             : <span className="text-neutral-400 text-xs">{item.kategori}</span>}
                         </td>
                         <td className="text-neutral-500 text-xs font-mono">{item.idkec}</td>
@@ -280,7 +291,7 @@ export default function AdminInfrastruktur() {
             <div className="grid grid-cols-2 gap-3">
               <Select label="Kategori" required value={form.kategori} onChange={e => setForm(f => ({ ...f, kategori: e.target.value }))}>
                 <option value="">-- Pilih Kategori --</option>
-                {kategoriList.map(k => <option key={k.value} value={k.value}>{k.icon} {k.label}</option>)}
+                {kategoriList.map(k => <option key={k.value} value={k.value}>{k.label}</option>)}
               </Select>
               <Input label="Alamat" value={form.alamat} onChange={e => setForm(f => ({ ...f, alamat: e.target.value }))} placeholder="Alamat lengkap" />
             </div>

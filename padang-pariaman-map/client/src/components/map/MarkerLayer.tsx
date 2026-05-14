@@ -1,11 +1,8 @@
 import React from 'react';
-import { useEffect, useRef } from 'react';
-import { useMap } from 'react-leaflet';
-import L from 'leaflet';
+import { Marker, Popup } from 'react-leaflet';
 import { Infrastruktur, KategoriInfra } from '../../types';
-import { createMarkerIcon } from '../../lib/mapUtils';
-import InfraPopup from './InfraPopup';
-import ReactDOMServer from 'react-dom/server';
+import { createCustomMarker } from '../../lib/gis/createCustomMarker';
+import CustomMapPopout from './CustomMapPopout';
 
 interface MarkerLayerProps {
   infrastruktur: Infrastruktur[];
@@ -14,47 +11,28 @@ interface MarkerLayerProps {
 
 // Layer marker infrastruktur
 export default function MarkerLayer({ infrastruktur, kategoriMap }: MarkerLayerProps) {
-  const map = useMap();
-  const layerGroupRef = useRef<L.LayerGroup | null>(null);
+  return (
+    <>
+      {infrastruktur.map((infra) => {
+        const kat = kategoriMap.get(infra.kategori);
 
-  useEffect(() => {
-    // Bersihkan layer lama
-    if (layerGroupRef.current) {
-      layerGroupRef.current.clearLayers();
-      map.removeLayer(layerGroupRef.current);
-    }
-
-    if (infrastruktur.length === 0) return;
-
-    const layerGroup = L.layerGroup();
-    layerGroupRef.current = layerGroup;
-
-    for (const infra of infrastruktur) {
-      const kat = kategoriMap.get(infra.kategori);
-
-      const marker = L.marker([infra.lat, infra.lng], {
-        icon: kat ? createMarkerIcon(kat) : undefined,
-      });
-
-      const popupContent = ReactDOMServer.renderToStaticMarkup(
-        <InfraPopup infra={infra} kategori={kat} />,
-      );
-
-      marker.bindPopup(popupContent, {
-        maxWidth: 260,
-        className: 'infra-popup',
-      });
-
-      layerGroup.addLayer(marker);
-    }
-
-    layerGroup.addTo(map);
-
-    return () => {
-      layerGroup.clearLayers();
-      map.removeLayer(layerGroup);
-    };
-  }, [infrastruktur, kategoriMap, map]);
-
-  return null;
+        return (
+          <Marker
+            key={infra.id}
+            position={[infra.lat, infra.lng]}
+            icon={createCustomMarker({ categoryValue: infra.kategori, kategori: kat })}
+          >
+            <Popup
+              className="custom-map-popup"
+              maxWidth={320}
+              autoPan
+              closeButton={false}
+            >
+              <CustomMapPopout infra={infra} kategori={kat} />
+            </Popup>
+          </Marker>
+        );
+      })}
+    </>
+  );
 }

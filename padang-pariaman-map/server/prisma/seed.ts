@@ -17,18 +17,18 @@ async function main() {
 
   // Seed kategori infrastruktur awal
   const kategoriAwal = [
-    { value: 'restoran',     label: 'Restoran',     icon: '🍽️', color: '#FF5733', urutan: 1 },
-    { value: 'rumah_ibadah', label: 'Rumah Ibadah', icon: '🕌', color: '#3D9970', urutan: 2 },
-    { value: 'pasar',        label: 'Pasar',        icon: '🏪', color: '#FF851B', urutan: 3 },
-    { value: 'toko',         label: 'Toko',         icon: '🛒', color: '#0074D9', urutan: 4 },
-    { value: 'kesehatan',    label: 'Kesehatan',    icon: '🏥', color: '#E74C3C', urutan: 5 },
-    { value: 'lainnya',      label: 'Lainnya',      icon: '📍', color: '#7F8C8D', urutan: 6 },
+    { value: 'restoran',     label: 'Restoran',     icon: 'utensils',        color: '#FF5733', urutan: 1 },
+    { value: 'rumah_ibadah', label: 'Rumah Ibadah', icon: 'mosque',          color: '#3D9970', urutan: 2 },
+    { value: 'pasar',        label: 'Pasar',        icon: 'shopping_basket', color: '#FF851B', urutan: 3 },
+    { value: 'toko',         label: 'Toko',         icon: 'store',           color: '#0074D9', urutan: 4 },
+    { value: 'kesehatan',    label: 'Kesehatan',    icon: 'heart_pulse',     color: '#E74C3C', urutan: 5 },
+    { value: 'lainnya',      label: 'Lainnya',      icon: 'map_pin',         color: '#7F8C8D', urutan: 6 },
   ];
 
   for (const kat of kategoriAwal) {
     await prisma.kategoriInfra.upsert({
       where: { value: kat.value },
-      update: {},
+      update: kat,
       create: kat,
     });
   }
